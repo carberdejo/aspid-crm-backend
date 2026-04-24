@@ -1,0 +1,45 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  Query,
+} from '@nestjs/common';
+import { UsersService } from './users.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { QueryUserDto } from './dto/query-user.dto';
+import { Role, UserDetailResponseDto } from './interfaces';
+import { Auth } from 'src/auth/decorators';
+
+@Controller('users')
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Post()
+  create(@Body() createUserDto: CreateUserDto) {
+    return this.usersService.create(createUserDto);
+  }
+
+  @Get()
+  @Auth(Role.ADMIN)
+  findAll(@Query() paginationDto: QueryUserDto) {
+    return this.usersService.findAll(paginationDto);
+  }
+
+  @Get(':codUser')
+  findOne(@Param('codUser') codUser: string): Promise<UserDetailResponseDto> {
+    return this.usersService.findOne(codUser);
+  }
+
+  // @Patch(':id')
+  // update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
+  //   return this.usersService.update(+id, updateUserDto);
+  // }
+
+  @Delete(':codUser')
+  remove(@Param('codUser') codUser: string): Promise<{ message: string }> {
+    return this.usersService.remove(codUser);
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node10",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2023",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "paths": {
+      "src/*": ["src/*"],
+      "@/*": ["src/*"]
+    },
+    "types": ["jest", "node"], // <--- AGREGA ESTA LÍNEA AQUÍ
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "noFallthroughCasesInSwitch": false,
+    "strictPropertyInitialization": false,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "ignoreDeprecations": "5.0"
+  }
+}
