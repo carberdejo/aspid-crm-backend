@@ -131,7 +131,9 @@ export class ClientsService {
     }
 
     if (ruc) {
-      queryBuilder.andWhere('client.ruc = :ruc', { ruc });
+      queryBuilder.andWhere('client.ruc ILIKE :ruc', {
+        ruc: `%${ruc}%`,
+      });
     }
 
     // 3. Ejecución

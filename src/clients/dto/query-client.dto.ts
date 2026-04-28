@@ -13,7 +13,7 @@ export class QueryClientDto extends PaginationDto {
   name?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtra por el número de RUC exacto',
+    description: 'Filtra por coincidencia parcial del RUC',
     example: '20123456789',
   })
   @IsOptional()

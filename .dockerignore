@@ -1,0 +1,52 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Node
+node_modules/
+npm-debug.log
+npm-error.log
+yarn-debug.log
+yarn-error.log
+# package-lock.json removed so it's included in Docker build context
+
+# Tests
+test/
+*.spec.ts
+coverage/
+.nyc_output/
+
+# Build
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment (excluir archivos .env)
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# Temporal
+tmp/
+temp/
+
+# Documentation
+*.md
+!README.md
+
+# Docker
+docker-compose*.yml
+Dockerfile
+.dockerignore

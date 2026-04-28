@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  concar-backend:
+    image: concar-backend:v1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: concar-backend-api
+    restart: always
+    ports:
+      - "${PORT}:${PORT}"
+    # Cargamos las variables de entorno (DB_HOST, DB_USER, etc.) desde tu .env
+    env_file:
+      - .env
+    networks:
+      - concar_network
+
+networks:
+  # Definimos la red personalizada
+  concar_network:
+    external: true
+    name: red_global_concar
