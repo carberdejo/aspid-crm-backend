@@ -10,6 +10,7 @@ import {
 import { Client } from '../../clients/entities/client.entity';
 import { User } from '../../users/entities/user.entity';
 import { ContactClient } from '../../clients/entities/contact-client.entity';
+import { QuoteStatus } from '../interfaces/quote-status.enum';
 
 @Entity({ name: 'quote' })
 export class Quote {
@@ -28,10 +29,13 @@ export class Quote {
   @Column({ name: 'contact_id', type: 'bigint', nullable: true })
   contactId: number;
 
+  @Column({ name: 'department_id', type: 'bigint' })
+  departmentId: number;
+
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   amount: number;
 
-  @Column({ type: 'varchar', length: 50, default: 'PENDIENTE' })
+  @Column({ type: 'varchar', length: 50, default: QuoteStatus.PENDIENTE })
   status: string;
 
   @Column({

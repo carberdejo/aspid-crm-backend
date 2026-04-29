@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
@@ -11,6 +9,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Response, Request } from 'express';
+import { QueryFailedError } from 'typeorm';
 import { AppLoggerService } from '../logging/logger.service';
 import { ApiErrorResponse } from '../interfaces/response.interface';
 import { ApiException } from '../exceptions/api.exception';
@@ -21,10 +20,6 @@ interface NestHttpExceptionResponse {
   statusCode: number;
 }
 
-/**
- * Global exception filter that catches all exceptions and formats them
- * according to the ApiErrorResponse interface
- */
 @Catch()
 @Injectable()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -37,154 +32,96 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    // Determine HTTP status code
-    const httpStatus =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+    // 1. Determinar el Status Code y construir la respuesta
+    const { httpStatus, errorResponse } = this.buildErrorDetails(exception);
 
-    // Extract error details
-    const errorResponse = this.buildErrorResponse(exception, httpStatus);
+    // 2. Loguear el error con todo el contexto (Lo que pediste)
+    this.logDetailedError(exception, request, httpStatus);
 
-    // Log the error with context
-    this.logError(exception, request, httpStatus);
-
-    // Send formatted response
+    // 3. Enviar la respuesta formateada al cliente
     response.status(httpStatus).json(errorResponse);
   }
 
-  /**
-   * Builds the error response according to ApiErrorResponse interface
-   */
-  private buildErrorResponse(
-    exception: unknown,
-    httpStatus: number,
-  ): ApiErrorResponse {
-    // Handle ApiException (custom exceptions with business code and errors array)
-    if (exception instanceof ApiException) {
-      const exceptionResponse = exception.getResponse() as any;
-      return {
-        code: exceptionResponse.code || httpStatus,
-        message: exceptionResponse.message || exception.message,
-        errors: this.formatErrors(exceptionResponse.errors),
-      };
+  private buildErrorDetails(exception: unknown): {
+    httpStatus: number;
+    errorResponse: ApiErrorResponse;
+  } {
+    let httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message = 'Internal server error';
+    let errors: any[] | null = null;
+
+    // CASO A: Error de base de datos (Llave duplicada)
+    if (
+      exception instanceof QueryFailedError &&
+      (exception as any).code === '23505'
+    ) {
+      httpStatus = HttpStatus.BAD_REQUEST;
+      message = 'Registro duplicado';
+      errors = [(exception as any).detail]; // Detalle de Postgres: "Key (quote_number)=(...) already exists"
     }
 
-    // Handle standard NestJS HttpException
-    if (exception instanceof HttpException) {
-      const exceptionResponse = exception.getResponse();
+    // CASO B: Tu ApiException personalizada
+    else if (exception instanceof ApiException) {
+      const res = exception.getResponse() as any;
+      httpStatus = exception.getStatus();
+      message = res.message || exception.message;
+      errors = res.errors;
+    }
 
-      // Handle validation errors from class-validator
-      if (
-        typeof exceptionResponse === 'object' &&
-        'message' in exceptionResponse
-      ) {
-        const responseObj = exceptionResponse as NestHttpExceptionResponse;
+    // CASO C: Excepciones estándar de NestJS (ej. NotFound, Unauthorized)
+    else if (exception instanceof HttpException) {
+      httpStatus = exception.getStatus();
+      const res = exception.getResponse();
 
-        // ValidationPipe returns errors in 'message' field as array
-        if (Array.isArray(responseObj.message)) {
-          return {
-            code: httpStatus,
-            message: 'Validation failed',
-            errors: responseObj.message,
-          };
-        }
-
-        // Single message error
-        return {
-          code: httpStatus,
-          message: responseObj.message || exception.message,
-          errors: null,
-        };
+      if (typeof res === 'object' && 'message' in res) {
+        const responseObj = res as NestHttpExceptionResponse;
+        message = Array.isArray(responseObj.message)
+          ? 'Validation failed'
+          : responseObj.message;
+        errors = Array.isArray(responseObj.message)
+          ? responseObj.message
+          : null;
+      } else {
+        message = typeof res === 'string' ? res : (exception as any).message;
       }
-
-      // String response
-      return {
-        code: httpStatus,
-        message:
-          typeof exceptionResponse === 'string'
-            ? exceptionResponse
-            : exception.message,
-        errors: null,
-      };
     }
 
-    // Handle unexpected errors (non-HTTP exceptions)
     return {
-      code: HttpStatus.INTERNAL_SERVER_ERROR,
-      message: this.getInternalErrorMessage(exception),
-      errors: null,
+      httpStatus,
+      errorResponse: {
+        code: httpStatus,
+        message,
+        errors: this.formatErrors(errors),
+      },
     };
   }
 
-  /**
-   * Formats the errors array to ensure all items are strings
-   */
-  private formatErrors(errors: any[] | undefined): string[] | null {
-    if (!errors || !Array.isArray(errors) || errors.length === 0) {
-      return null;
-    }
+  private logDetailedError(
+    exception: unknown,
+    request: Request,
+    status: number,
+  ) {
+    const { method, url, body } = request;
+    const basicInfo = `${method} ${url} - Status: ${status}`;
 
-    return errors.map((error) => {
-      // If already a string, return as-is
-      if (typeof error === 'string') {
-        return error;
-      }
-
-      // If object with common error properties, format descriptively
-      if (typeof error === 'object' && error !== null) {
-        // Handle validation error format: { field, message }
-        if (error.field && error.message) {
-          return `${error.field}: ${error.message}`;
-        }
-
-        // Handle validation error format: { code, path, message }
-        if (error.path && error.message) {
-          const pathStr = Array.isArray(error.path)
-            ? error.path.join('.')
-            : error.path;
-          return `${pathStr}: ${error.message}`;
-        }
-
-        // Handle property-based errors
-        if (error.property && error.constraints) {
-          const constraintMessages = Object.values(error.constraints);
-          return constraintMessages.join(', ');
-        }
-
-        // Fallback: stringify the object
-        return JSON.stringify(error);
-      }
-
-      // Fallback: convert to string
-      return String(error);
-    });
-  }
-
-  /**
-   * Returns appropriate error message for internal errors
-   * based on environment (development vs production)
-   */
-  private getInternalErrorMessage(exception: unknown): string {
-    const isDevelopment = process.env.NODE_ENV === 'development';
-
-    if (isDevelopment && exception instanceof Error) {
-      return exception.message;
-    }
-
-    return 'Internal server error';
-  }
-
-  /**
-   * Logs error details with context
-   */
-  private logError(exception: unknown, request: Request, status: number) {
-    const message = `${request.method} ${request.url} - Status: ${status}`;
-
-    if (exception instanceof Error) {
-      this.logger.error(message, exception.stack);
+    if (exception instanceof QueryFailedError) {
+      this.logger.error(
+        `${basicInfo} | DB_ERROR: ${exception.message} | QUERY: ${exception.query}`,
+      );
+    } else if (exception instanceof Error) {
+      this.logger.error(
+        `${basicInfo} | MSG: ${exception.message}`,
+        exception.stack,
+      );
     } else {
-      this.logger.error(message, String(exception));
+      this.logger.error(`${basicInfo} | DATA: ${JSON.stringify(body)}`);
     }
+  }
+
+  private formatErrors(errors: any[] | null): string[] | null {
+    if (!errors || !Array.isArray(errors) || errors.length === 0) return null;
+    return errors.map((err) =>
+      typeof err === 'object' ? JSON.stringify(err) : String(err),
+    );
   }
 }
