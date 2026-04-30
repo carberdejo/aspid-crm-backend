@@ -6,12 +6,14 @@ import {
   Patch,
   Param,
   Query,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { QuotesService } from './quotes.service';
 import { CreateQuoteDto } from './dto/create-quote.dto';
 import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { QueryQuoteDto } from './dto/query-quote.dto';
 import { RemoveQuoteDto } from './dto/remove-quote.dto';
+import { QuoteMetricsQueryDto } from 'src/analytics/dto/quote-metrics-query.dto';
 
 @Controller('quotes')
 export class QuotesController {
@@ -40,5 +42,14 @@ export class QuotesController {
   @Patch('delete/:id')
   remove(@Param('id') id: string, @Body() removeQuoteDto: RemoveQuoteDto) {
     return this.quotesService.remove(+id, removeQuoteDto);
+  }
+
+  @Get('metrics/:userId')
+  getMetrics(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Query() query: QuoteMetricsQueryDto,
+  ) {
+    // Sobrescribimos el userId con el del token por seguridad
+    return this.quotesService.getMetrics(userId, query);
   }
 }

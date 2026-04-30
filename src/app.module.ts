@@ -12,6 +12,8 @@ import { AuthModule } from './auth/auth.module';
 import { VisitsModule } from './visits/visits.module';
 import { ClientsModule } from './clients/clients.module';
 import { QuotesModule } from './quotes/quotes.module';
+import { OrdersModule } from './orders/orders.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -54,6 +56,8 @@ import { QuotesModule } from './quotes/quotes.module';
     VisitsModule,
     ClientsModule,
     QuotesModule,
+    OrdersModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

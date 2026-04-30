@@ -16,6 +16,7 @@ import { ApiException } from 'src/common/exceptions/api.exception';
 import { QuoteMapper } from './mappers/quote.mapper';
 import { RemoveQuoteDto } from './dto/remove-quote.dto';
 import { QuoteStatus } from './interfaces/quote-status.enum';
+import { QuoteMetricsQueryDto } from 'src/analytics/dto/quote-metrics-query.dto';
 
 @Injectable()
 export class QuotesService {
@@ -282,4 +283,53 @@ export class QuotesService {
       relations: ['user', 'client', 'contact', 'collaborator'],
     });
   }
+
+  async getMetrics(id: number, query: QuoteMetricsQueryDto) {
+    const { startDate, endDate } = query;
+
+    const queryBuilder = this.quoteRepository.createQueryBuilder('quote');
+
+    // 1. Filtro obligatorio o condicional por Usuario
+    if (id) {
+      queryBuilder.andWhere('quote.userId = :userId', { userId: id });
+    }
+
+    // 2. Filtro de fechas
+    if (startDate && endDate) {
+      queryBuilder.andWhere('quote.createdAt BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate,
+      });
+    }
+
+    const metrics = await queryBuilder
+      .select('COUNT(*)', 'total')
+      .addSelect(
+        `COUNT(*) FILTER (WHERE quote.status = '${QuoteStatus.PENDIENTE}')`,
+        'pending',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (WHERE quote.status = '${QuoteStatus.APROBADO}')`,
+        'approved',
+      )
+      .getRawOne<QuoteMetricsRaw>();
+
+    if (!metrics) {
+      return { data: { total: 0, pending: 0, approved: 0 } };
+    }
+
+    return {
+      data: {
+        total: parseInt(metrics.total, 10) || 0,
+        pending: parseInt(metrics.pending, 10) || 0,
+        approved: parseInt(metrics.approved, 10) || 0,
+      },
+    };
+  }
+}
+
+interface QuoteMetricsRaw {
+  total: string;
+  pending: string;
+  approved: string;
 }
