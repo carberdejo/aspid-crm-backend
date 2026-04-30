@@ -256,7 +256,7 @@ export class QuotesService {
     // 2. Validar si ya está rechazada para no repetir el proceso
     if ((quote.status as QuoteStatus) === QuoteStatus.RECHAZADO) {
       throw new BadRequestException(
-        'Esta cotización ya se encuentra rechazada/eliminada',
+        'Esta cotización ya se encuentra rechazada.',
       );
     }
 
@@ -271,8 +271,7 @@ export class QuotesService {
     this.logger.log(`Quote ${id} marked as RECHAZADO`);
 
     return {
-      message:
-        'La cotización ha sido rechazada y eliminada del flujo activo exitosamente',
+      message: ` La cotización con codigo ${quote.quoteNumber} ha sido rechazada exitosamente`,
     };
   }
 

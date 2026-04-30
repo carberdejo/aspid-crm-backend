@@ -6,7 +6,6 @@ import {
   Patch,
   Param,
   Query,
-  Delete,
 } from '@nestjs/common';
 import { QuotesService } from './quotes.service';
 import { CreateQuoteDto } from './dto/create-quote.dto';
@@ -38,7 +37,7 @@ export class QuotesController {
     return this.quotesService.update(+id, updateQuoteDto);
   }
 
-  @Delete(':id')
+  @Patch('delete/:id')
   remove(@Param('id') id: string, @Body() removeQuoteDto: RemoveQuoteDto) {
     return this.quotesService.remove(+id, removeQuoteDto);
   }

@@ -10,6 +10,7 @@ export interface MappedQuote {
   clientId: number;
   contactId: number | null;
   collaboratorId: number | null;
+  departmentId: number;
   user: {
     id: number;
     codUser: string;

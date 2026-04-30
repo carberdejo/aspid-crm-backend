@@ -12,6 +12,7 @@ export class QuoteMapper {
       createdAt: quote.createdAt,
       userId: Number(quote.userId),
       clientId: Number(quote.clientId),
+      departmentId: Number(quote.departmentId),
       contactId: quote.contactId ? Number(quote.contactId) : null,
       collaboratorId: quote.collaboratorId
         ? Number(quote.collaboratorId)
