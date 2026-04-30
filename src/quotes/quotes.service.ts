@@ -58,10 +58,10 @@ export class QuotesService {
     this.logger.log(
       `Cotizacion creada con número: ${savedQuote.quoteNumber} a las ${savedQuote.createdAt.toDateString()} por el usuario ID: ${savedQuote.userId}`,
     );
-    throw new Error('Simulación de error para probar el filtro'); // Simulamos un error para probar el filtro global
+    // throw new Error('Simulación de error para probar el filtro'); // Simulamos un error para probar el filtro global
     return {
       message: `Cotización con número: ${savedQuote.quoteNumber} creada exitosamente`,
-      data: savedQuote,
+      // data: savedQuote,
     };
   }
 

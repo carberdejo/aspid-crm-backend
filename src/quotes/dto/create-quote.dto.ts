@@ -4,6 +4,7 @@ import {
   IsString,
   IsOptional,
   Min,
+  IsDateString,
 } from 'class-validator';
 
 export class CreateQuoteDto {
@@ -47,4 +48,8 @@ export class CreateQuoteDto {
   @IsNumber()
   @IsOptional()
   collaboratorId?: number;
+
+  @IsDateString()
+  @IsNotEmpty()
+  createdAt: Date;
 }
