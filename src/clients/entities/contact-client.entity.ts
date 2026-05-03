@@ -30,6 +30,10 @@ export class ContactClient {
   @Column({ type: 'varchar', length: 20 })
   phone: string;
 
+  @ApiProperty({ example: 'juan.perez@empresa.com' })
+  @Column({ type: 'varchar', length: 100 })
+  email: string;
+
   @ApiProperty({ example: 1, description: 'ID de la empresa asociada' })
   @Column({ name: 'client_id', type: 'bigint' })
   clientId: number;

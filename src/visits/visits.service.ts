@@ -1,15 +1,19 @@
-import { Injectable, Logger, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { CreateVisitDto } from './dto/create-visit.dto';
 import { UpdateVisitDto } from './dto/update-visit.dto';
 import { QueryVisitDto } from './dto/query-visit.dto';
 import { Visit } from './entities/visit.entity';
-import { User } from '../users/entities/user.entity';
-import { Client } from '../clients/entities/client.entity';
-import { ContactClient } from '../clients/entities/contact-client.entity';
-import { ApiException } from 'src/common/exceptions/api.exception';
-import { Department } from 'src/departments/entities/department.entity';
+
+import { CommonValidationService } from 'src/common/common-validation.service';
+import {
+  VisitNotFoundException,
+  VisitContactNotBelongToClientException,
+  VisitUserNotFoundException,
+  VisitClientNotFoundException,
+  VisitContactNotFoundException,
+} from './exceptions/visit.exceptions';
 
 @Injectable()
 export class VisitsService {
@@ -18,105 +22,44 @@ export class VisitsService {
   constructor(
     @InjectRepository(Visit)
     private readonly visitRepository: Repository<Visit>,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-    @InjectRepository(Client)
-    private readonly clientRepository: Repository<Client>,
-    @InjectRepository(ContactClient)
-    private readonly contactClientRepository: Repository<ContactClient>,
-    @InjectRepository(Department)
-    private readonly departmentRepository: Repository<Department>,
+    private readonly commonValidationService: CommonValidationService,
   ) {}
 
   async create(createVisitDto: CreateVisitDto) {
     try {
       this.logger.log('Creating new visit...');
 
-      // Validar que el usuario exista
-      const user = await this.userRepository.findOne({
-        where: { id: createVisitDto.userId },
-      });
-      if (!user) {
-        throw new ApiException(
-          404,
-          `Usuario con ID ${createVisitDto.userId} no encontrado`,
-          [],
-          HttpStatus.NOT_FOUND,
+      const client = await this.commonValidationService.findClientById(
+        createVisitDto.clientId,
+      );
+
+      const contact = await this.commonValidationService.findContactClientById(
+        createVisitDto.contactId,
+      );
+
+      if (contact.clientId !== client.id) {
+        throw new VisitContactNotBelongToClientException(
+          createVisitDto.contactId,
+          createVisitDto.clientId,
         );
       }
+      await this.commonValidationService.findUserById(createVisitDto.userId);
+      await this.commonValidationService.findDepartmentById(
+        createVisitDto.departmentId,
+      );
 
-      // Validar que el cliente exista
-      const client = await this.clientRepository.findOne({
-        where: { id: createVisitDto.clientId },
-      });
-      if (!client) {
-        throw new ApiException(
-          404,
-          `Cliente con ID ${createVisitDto.clientId} no encontrado`,
-          [],
-          HttpStatus.NOT_FOUND,
-        );
-      }
-
-      // Validar que el contacto exista
-      if (createVisitDto.contactId) {
-        const contact = await this.contactClientRepository.findOne({
-          where: { id: createVisitDto.contactId },
-        });
-        if (!contact) {
-          throw new ApiException(
-            404,
-            `Contacto con ID ${createVisitDto.contactId} no encontrado`,
-            [],
-            HttpStatus.NOT_FOUND,
-          );
-        }
-        this.logger.log(
-          `Contacto con userId ${contact.clientId} encontrado, mi clienteId es ${client.id}`,
-        );
-        // Validar que el contacto pertenezca al cliente
-        if (contact.clientId !== client.id) {
-          throw new ApiException(
-            400,
-            `El contacto con ID ${createVisitDto.contactId} no pertenece al cliente con ID ${createVisitDto.clientId}`,
-            [],
-            HttpStatus.BAD_REQUEST,
-          );
-        }
-      }
-
-      // Validar que el departamento exista
-      const department = await this.departmentRepository.findOne({
-        where: { id: createVisitDto.departmentId },
-      });
-      if (!department) {
-        throw new ApiException(
-          404,
-          `Departamento con ID ${createVisitDto.departmentId} no encontrado`,
-          [],
-          HttpStatus.NOT_FOUND,
-        );
-      }
-
-      // Crear y guardar la visita
       const visit = this.visitRepository.create(createVisitDto);
       const savedVisit = await this.visitRepository.save(visit);
 
       this.logger.log(`Visit created successfully with ID: ${savedVisit.id}`);
       return {
         message: 'Visita creada exitosamente',
-        data: savedVisit,
       };
     } catch (error) {
-      if (error instanceof ApiException) throw error;
-
-      this.logger.error(`Error creating visit: ${error.message}`);
-      throw new ApiException(
-        500,
-        'Error al crear la visita',
-        [error.message],
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      this.logger.error(
+        `Error creating visit: ${error instanceof Error ? error.message : 'Error desconocido'}`,
       );
+      throw error;
     }
   }
 
@@ -224,13 +167,10 @@ export class VisitsService {
         },
       };
     } catch (error) {
-      this.logger.error(`Error fetching visits: ${error.message}`);
-      throw new ApiException(
-        500,
-        'Error al obtener las visitas',
-        [error.message],
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      this.logger.error(
+        `Error fetching visits: ${error instanceof Error ? error.message : 'Error desconocido'}`,
       );
+      throw error;
     }
   }
 
@@ -261,12 +201,7 @@ export class VisitsService {
         .getOne();
 
       if (!visit) {
-        throw new ApiException(
-          404,
-          `Visita con ID ${id} no encontrada`,
-          [],
-          HttpStatus.NOT_FOUND,
-        );
+        throw new VisitNotFoundException(id);
       }
 
       // Mapear a respuesta optimizada
@@ -310,15 +245,10 @@ export class VisitsService {
         data: optimizedVisit,
       };
     } catch (error) {
-      if (error instanceof ApiException) throw error;
-
-      this.logger.error(`Error fetching visit: ${error.message}`);
-      throw new ApiException(
-        500,
-        'Error al obtener la visita',
-        [error.message],
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      this.logger.error(
+        `Error fetching visit: ${error instanceof Error ? error.message : 'Error desconocido'}`,
       );
+      throw error;
     }
   }
 
@@ -326,74 +256,39 @@ export class VisitsService {
     try {
       this.logger.log(`Updating visit with ID: ${id}`);
 
-      // Verificar que la visita exista
       const visit = await this.visitRepository.findOne({ where: { id } });
       if (!visit) {
-        throw new ApiException(
-          404,
-          `Visita con ID ${id} no encontrada`,
-          [],
-          HttpStatus.NOT_FOUND,
-        );
+        throw new VisitNotFoundException(id);
       }
 
       // Si se está actualizando userId, validar que exista
       if (updateVisitDto.userId) {
-        const user = await this.userRepository.findOne({
-          where: { id: updateVisitDto.userId },
-        });
-        if (!user) {
-          throw new ApiException(
-            404,
-            `Usuario con ID ${updateVisitDto.userId} no encontrado`,
-            [],
-            HttpStatus.NOT_FOUND,
-          );
-        }
+        await this.commonValidationService.findUserById(updateVisitDto.userId);
       }
 
       // Si se está actualizando clientId, validar que exista
       if (updateVisitDto.clientId) {
-        const client = await this.clientRepository.findOne({
-          where: { id: updateVisitDto.clientId },
-        });
-        if (!client) {
-          throw new ApiException(
-            404,
-            `Cliente con ID ${updateVisitDto.clientId} no encontrado`,
-            [],
-            HttpStatus.NOT_FOUND,
-          );
-        }
+        await this.commonValidationService.findClientById(
+          updateVisitDto.clientId,
+        );
       }
 
       // Si se está actualizando contactId, validar que exista y pertenezca al cliente
       if (updateVisitDto.contactId) {
-        const contact = await this.contactClientRepository.findOne({
-          where: { id: updateVisitDto.contactId },
-        });
-        if (!contact) {
-          throw new ApiException(
-            404,
-            `Contacto con ID ${updateVisitDto.contactId} no encontrado`,
-            [],
-            HttpStatus.NOT_FOUND,
+        const contact =
+          await this.commonValidationService.findContactClientById(
+            updateVisitDto.contactId,
           );
-        }
 
-        // Validar que el contacto pertenezca al cliente correcto
         const clientIdToCheck = updateVisitDto.clientId || visit.clientId;
         if (contact.clientId !== clientIdToCheck) {
-          throw new ApiException(
-            400,
-            `El contacto con ID ${updateVisitDto.contactId} no pertenece al cliente especificado`,
-            [],
-            HttpStatus.BAD_REQUEST,
+          throw new VisitContactNotBelongToClientException(
+            updateVisitDto.contactId,
+            clientIdToCheck,
           );
         }
       }
 
-      // Actualizar la visita
       await this.visitRepository.update(id, updateVisitDto);
 
       // Obtener la visita actualizada con relaciones (sin incluir contacts del cliente)
@@ -418,15 +313,10 @@ export class VisitsService {
         data: updatedVisit,
       };
     } catch (error) {
-      if (error instanceof ApiException) throw error;
-
-      this.logger.error(`Error updating visit: ${error.message}`);
-      throw new ApiException(
-        500,
-        'Error al actualizar la visita',
-        [error.message],
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      this.logger.error(
+        `Error updating visit: ${error instanceof Error ? error.message : 'Error desconocido'}`,
       );
+      throw error;
     }
   }
 
@@ -435,14 +325,7 @@ export class VisitsService {
       this.logger.log(`Removing visit with ID: ${id}`);
 
       const visit = await this.visitRepository.findOne({ where: { id } });
-      if (!visit) {
-        throw new ApiException(
-          404,
-          `Visita con ID ${id} no encontrada`,
-          [],
-          HttpStatus.NOT_FOUND,
-        );
-      }
+      if (!visit) throw new VisitNotFoundException(id);
 
       await this.visitRepository.delete(id);
 
@@ -450,15 +333,10 @@ export class VisitsService {
         message: 'Visita eliminada exitosamente',
       };
     } catch (error) {
-      if (error instanceof ApiException) throw error;
-
-      this.logger.error(`Error removing visit: ${error.message}`);
-      throw new ApiException(
-        500,
-        'Error al eliminar la visita',
-        [error.message],
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      this.logger.error(
+        `Error removing visit: ${error instanceof Error ? error.message : 'Error desconocido'}`,
       );
+      throw error;
     }
   }
 }

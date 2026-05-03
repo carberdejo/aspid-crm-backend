@@ -51,9 +51,20 @@ export class CreateContactClientDto {
   @ApiProperty({
     description: 'ID del cliente al que pertenece este contacto',
     example: 1,
-    required: false,
+    // required: false,
   })
   @IsNumber()
-  @IsOptional()
-  clientId?: number;
+  @IsNotEmpty({ message: 'El ID del cliente es obligatorio' })
+  // @IsOptional()
+  clientId: number;
+
+  @ApiProperty({
+    description: 'Correo electrónico del contacto',
+    example: 'juan.perez@empresa.com',
+    maxLength: 100,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'El correo electrónico del contacto es obligatorio' })
+  @MaxLength(100)
+  email: string;
 }

@@ -3,17 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { VisitsService } from './visits.service';
 import { VisitsController } from './visits.controller';
 import { Visit } from './entities/visit.entity';
-import { User } from '../users/entities/user.entity';
-import { Client } from '../clients/entities/client.entity';
-import { ContactClient } from '../clients/entities/contact-client.entity';
-import { Department } from 'src/departments/entities/department.entity';
+import { CommonModule } from 'src/common/common.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Visit, User, Client, ContactClient, Department]),
-  ],
+  imports: [TypeOrmModule.forFeature([Visit]), CommonModule],
   controllers: [VisitsController],
   providers: [VisitsService],
-  exports: [VisitsService],
+  exports: [VisitsService, TypeOrmModule],
 })
 export class VisitsModule {}
