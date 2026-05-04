@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  HttpStatus,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { CreateQuoteDto } from './dto/create-quote.dto';
 import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -16,7 +10,10 @@ import { ApiException } from 'src/common/exceptions/api.exception';
 import { QuoteMapper } from './mappers/quote.mapper';
 import { RemoveQuoteDto } from './dto/remove-quote.dto';
 import { QuoteStatus } from './interfaces/quote-status.enum';
-import { QuoteMetricsQueryDto } from 'src/analytics/dto/quote-metrics-query.dto';
+import {
+  QuoteInvalidStatusTransitionException,
+  QuoteNotFoundException,
+} from './exceptions/quote.exceptions';
 
 @Injectable()
 export class QuotesService {
@@ -167,18 +164,13 @@ export class QuotesService {
 
     const quote = await this.findOneInternal(id);
 
-    if (!quote) {
-      throw new NotFoundException(`Cotización con ID ${id} no encontrada`);
-    }
+    if (!quote) throw new QuoteNotFoundException(id);
 
     // --- USAMOS EL MAPPER QUE CREAMOS ANTES ---
     const optimizedQuote = QuoteMapper.toResponse(quote, true);
 
     this.logger.log(`Quote retrieved successfully`);
-    return {
-      message: 'Cotización obtenida exitosamente',
-      data: optimizedQuote,
-    };
+    return optimizedQuote;
   }
 
   async update(id: number, updateQuoteDto: UpdateQuoteDto) {
@@ -187,7 +179,7 @@ export class QuotesService {
     // 1. Verificar que la cotización existe
     const quote = await this.quoteRepository.findOneBy({ id });
     if (!quote) {
-      throw new NotFoundException(`Cotización con ID ${id} no encontrada`);
+      throw new QuoteNotFoundException(id);
     }
 
     // Validar que el usuario exista
@@ -227,14 +219,7 @@ export class QuotesService {
     // 4. Recargar relaciones para el Mapper (importante para traer nombres de user, client, etc.)
     const fullQuote = await this.findOneInternal(id);
 
-    if (!fullQuote) {
-      throw new ApiException(
-        404,
-        'Cotización no encontrada1111',
-        [],
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    if (!fullQuote) throw new QuoteNotFoundException(id); // Esto es raro que pase pero lo ponemos por seguridad
 
     this.logger.log(`Quote ${id} updated successfully`);
 
@@ -250,14 +235,13 @@ export class QuotesService {
     // 1. Buscamos la cotización
     const quote = await this.quoteRepository.findOneBy({ id: Number(id) });
 
-    if (!quote) {
-      throw new NotFoundException(`Cotización con ID ${id} no encontrada`);
-    }
+    if (!quote) throw new QuoteNotFoundException(id);
 
     // 2. Validar si ya está rechazada para no repetir el proceso
     if ((quote.status as QuoteStatus) === QuoteStatus.RECHAZADO) {
-      throw new BadRequestException(
-        'Esta cotización ya se encuentra rechazada.',
+      throw new QuoteInvalidStatusTransitionException(
+        quote.status,
+        QuoteStatus.RECHAZADO,
       );
     }
 
@@ -283,53 +267,4 @@ export class QuotesService {
       relations: ['user', 'client', 'contact', 'collaborator'],
     });
   }
-
-  async getMetrics(id: number, query: QuoteMetricsQueryDto) {
-    const { startDate, endDate } = query;
-
-    const queryBuilder = this.quoteRepository.createQueryBuilder('quote');
-
-    // 1. Filtro obligatorio o condicional por Usuario
-    if (id) {
-      queryBuilder.andWhere('quote.userId = :userId', { userId: id });
-    }
-
-    // 2. Filtro de fechas
-    if (startDate && endDate) {
-      queryBuilder.andWhere('quote.createdAt BETWEEN :startDate AND :endDate', {
-        startDate,
-        endDate,
-      });
-    }
-
-    const metrics = await queryBuilder
-      .select('COUNT(*)', 'total')
-      .addSelect(
-        `COUNT(*) FILTER (WHERE quote.status = '${QuoteStatus.PENDIENTE}')`,
-        'pending',
-      )
-      .addSelect(
-        `COUNT(*) FILTER (WHERE quote.status = '${QuoteStatus.APROBADO}')`,
-        'approved',
-      )
-      .getRawOne<QuoteMetricsRaw>();
-
-    if (!metrics) {
-      return { data: { total: 0, pending: 0, approved: 0 } };
-    }
-
-    return {
-      data: {
-        total: parseInt(metrics.total, 10) || 0,
-        pending: parseInt(metrics.pending, 10) || 0,
-        approved: parseInt(metrics.approved, 10) || 0,
-      },
-    };
-  }
-}
-
-interface QuoteMetricsRaw {
-  total: string;
-  pending: string;
-  approved: string;
 }

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { Client, ContactClient } from './entities';
 import { QueryClientDto } from './dto/query-client.dto';
 import { ApiException } from 'src/common/exceptions/api.exception';
@@ -77,7 +77,7 @@ export class ClientsService {
   }
 
   async findAll(@Query() query: QueryClientDto) {
-    const { name, ruc, limit = 10, offset = 0 } = query;
+    const { term, limit = 10, offset = 0 } = query;
 
     const queryBuilder = this.clientRepository.createQueryBuilder('client');
 
@@ -88,17 +88,14 @@ export class ClientsService {
     );
 
     // 2. Filtros
-    if (name) {
+    if (term) {
       queryBuilder.andWhere(
-        '(client.commercialName ILIKE :name OR client.businessName ILIKE :name)',
-        { name: `%${name}%` },
+        new Brackets((qb) => {
+          qb.where('client.commercialName ILIKE :term', { term: `%${term}%` })
+            .orWhere('client.businessName ILIKE :term', { term: `%${term}%` })
+            .orWhere('client.ruc ILIKE :term', { term: `%${term}%` });
+        }),
       );
-    }
-
-    if (ruc) {
-      queryBuilder.andWhere('client.ruc ILIKE :ruc', {
-        ruc: `%${ruc}%`,
-      });
     }
 
     // 3. Ejecución
@@ -115,12 +112,6 @@ export class ClientsService {
         offset: +offset,
       },
     };
-  }
-
-  async findOne(id: number) {
-    const client = await this.clientRepository.findOneBy({ id });
-    if (!client) throw new ClientNotFoundException(id);
-    return client;
   }
 
   async createContact(contactData: CreateContactClientDto) {

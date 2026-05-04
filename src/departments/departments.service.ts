@@ -40,7 +40,6 @@ export class DepartmentsService {
 
     return {
       message: 'Departamento creado exitosamente',
-      data: savedDepartment,
     };
   }
 

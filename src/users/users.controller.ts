@@ -6,12 +6,16 @@ import {
   Param,
   Delete,
   Query,
+  Patch,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 import { Role, UserDetailResponseDto } from './interfaces';
 import { Auth } from 'src/auth/decorators';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Controller('users')
 export class UsersController {
@@ -23,6 +27,12 @@ export class UsersController {
   }
 
   @Get()
+  @UsePipes(
+    new ValidationPipe({
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  )
   @Auth(Role.ADMIN)
   findAll(@Query() paginationDto: QueryUserDto) {
     return this.usersService.findAll(paginationDto);
@@ -33,10 +43,13 @@ export class UsersController {
     return this.usersService.findOne(codUser);
   }
 
-  // @Patch(':id')
-  // update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-  //   return this.usersService.update(+id, updateUserDto);
-  // }
+  @Patch(':codUser')
+  update(
+    @Param('codUser') codUser: string,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    return this.usersService.update(codUser, updateUserDto);
+  }
 
   @Delete(':codUser')
   remove(@Param('codUser') codUser: string): Promise<{ message: string }> {

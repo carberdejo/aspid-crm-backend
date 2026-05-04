@@ -2,17 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
-import { Repository } from 'typeorm';
+import { Brackets, DataSource, Repository } from 'typeorm';
 import { UserDepartment } from './entities/user-department.entity';
 import * as bcrypt from 'bcrypt';
 import { QueryUserDto } from './dto/query-user.dto';
 import { DepartmentsService } from 'src/departments/departments.service';
-import { Role, UserDetailResponseDto, UserListResponseDto } from './interfaces';
 import {
   UsersCodUserAlreadyExistsException,
   UsersEmailAlreadyExistsException,
   UsersNotFoundException,
 } from './exceptions/users.exceptions';
+import { UserMapper } from './mappers/users.mapper';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 export interface UserResponse {
   codUser: number;
@@ -35,6 +36,8 @@ export class UsersService {
     @InjectRepository(UserDepartment)
     private readonly userDepartmentRepository: Repository<UserDepartment>,
     private readonly departmentsService: DepartmentsService,
+
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(createUserDto: CreateUserDto) {
@@ -62,22 +65,34 @@ export class UsersService {
   }
 
   async findAll(queryUserDto: QueryUserDto) {
-    const { limit = 10, offset = 0, name, codUser } = queryUserDto;
+    const { limit = 10, offset = 0, term, departmentId } = queryUserDto;
+    const isActive = this.normalizeBoolean(queryUserDto.isActive);
 
+    console.log({ term, departmentId, isActive });
     const queryBuilder = this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.userDepartments', 'userDept')
       .leftJoinAndSelect('userDept.department', 'dept');
 
-    if (name) {
-      queryBuilder.andWhere('user.firstName ILike :name', {
-        name: `%${name}%`,
-      });
+    if (term) {
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          qb.where('user.firstName ILike :term', { term: `%${term}%` })
+            .orWhere('user.lastName ILike :term', { term: `%${term}%` })
+            .orWhere('user.codUser ILike :term', { term: `%${term}%` });
+        }),
+      );
     }
 
-    if (codUser) queryBuilder.andWhere('user.codUser = :codUser', { codUser });
+    if (departmentId) {
+      queryBuilder.andWhere('dept.id = :departmentId', { departmentId });
+    }
+
+    if (isActive !== undefined && isActive !== null)
+      queryBuilder.andWhere('user.isActive = :isActive', { isActive });
 
     const [users, total] = await queryBuilder
+      // .orderBy('user.createdAt', 'DESC')
       .skip(offset)
       .take(limit)
       .getManyAndCount();
@@ -88,7 +103,7 @@ export class UsersService {
 
     return {
       data: {
-        items: users.map((user) => this.mapToListResponse(user)),
+        items: UserMapper.toManyListResponse(users),
         total,
         limit,
         offset,
@@ -101,31 +116,81 @@ export class UsersService {
       where: { codUser },
       relations: ['userDepartments', 'userDepartments.department'], // Cargamos también los departamentos relacionados
     });
-    if (!user) {
-      this.logger.warn(`User with codUser ${codUser} not found`);
-      throw new UsersNotFoundException(Number(codUser));
-    }
+    if (!user) throw new UsersNotFoundException(Number(codUser));
+
     this.logger.log(`User with codUser ${codUser} found: ${user.email}`);
-    return this.mapToDetailResponse(user);
+    return UserMapper.toDetailResponse(user);
   }
 
-  // update(id: number, updateUserDto: UpdateUserDto) {
-  //   return { data: updateUserDto };
-  // }
+  async update(codUser: string, updateUserDto: UpdateUserDto) {
+    const { departmentIds, password, ...userData } = updateUserDto;
+
+    const user = await this.userRepository.findOne({
+      where: { codUser },
+      relations: ['userDepartments'],
+    });
+    if (!user) throw new UsersNotFoundException(Number(codUser));
+
+    if (userData.email && userData.email !== user.email) {
+      await this.validateEmail(userData.email);
+    }
+    // incio de la transacción
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      if (password) user.password = await bcrypt.hash(password, 10);
+
+      //  Actualizar campos básicos
+      Object.assign(user, userData);
+
+      //  Gestionar Departamentos dentro de la transacción
+      if (departmentIds) {
+        await this.validateDepartmentIds(departmentIds);
+
+        // Usamos el manager del queryRunner para asegurar que sea parte de la transacción
+        await queryRunner.manager.delete(UserDepartment, {
+          user: { id: user.id },
+        });
+
+        user.userDepartments = departmentIds.map((depId) =>
+          queryRunner.manager.create(UserDepartment, {
+            department: { id: depId },
+          }),
+        );
+      }
+      // Guardamos todo
+      await queryRunner.manager.save(user);
+      // Si todo salió bien, confirmamos los cambios
+      await queryRunner.commitTransaction();
+
+      // 8. Retornamos la data fresca (reutilizando findOne)
+      return {
+        message: `Usuario ${codUser} actualizado exitosamente`,
+        data: await this.findOne(codUser), // Ya viene mapeado por el findOne
+      };
+    } catch (error) {
+      // Si algo falla, deshacemos TODO (el delete y el save)
+      await queryRunner.rollbackTransaction();
+      throw error; // El HttpExceptionFilter lo atrapará
+    } finally {
+      // IMPORTANTE: Liberar el queryRunner
+      await queryRunner.release();
+    }
+  }
 
   async remove(codUser: string) {
     const userEntity = await this.userRepository.findOneBy({ codUser });
-    if (!userEntity || userEntity.isActive === false) {
-      this.logger.warn(
-        `User with codUser ${codUser} not found or already inactive`,
-      );
+    if (!userEntity || userEntity.isActive === false)
       throw new UsersNotFoundException(Number(codUser));
-    }
 
     userEntity.isActive = false;
     await this.userRepository.save(userEntity);
     return { message: `User #${codUser} deactivated successfully` };
   }
+
+  // --- Helpers de Validación ---
 
   async validateCodUser(codUser: string) {
     const userCodUser = await this.userRepository.findOneBy({
@@ -140,45 +205,16 @@ export class UsersService {
     });
     if (userEmail != null) throw new UsersEmailAlreadyExistsException(email);
   }
-  async validateDepartmentIds(departmentIds: number[]) {
-    for (const depId of departmentIds) {
-      await this.departmentsService.findOne(depId);
-    }
+  private async validateDepartmentIds(departmentIds: number[]) {
+    await Promise.all(
+      departmentIds.map((id) => this.departmentsService.findOne(id)),
+    );
   }
 
-  // Mapeo para el Detalle (findOne)
-  private mapToDetailResponse(user: User): UserDetailResponseDto {
-    return {
-      codUser: user.codUser,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      isActive: user.isActive,
-      role: user.role,
-      country: user.country,
-      phone: user.phone,
-      userDepartments: user.userDepartments.map((ud) => ({
-        id: ud.id.toString(),
-        assignedAt: ud.assignedAt,
-        department: {
-          id: ud.department.id,
-          name: ud.department.name,
-          isActive: ud.department.isActive,
-        },
-      })),
-    };
-  }
-
-  // Mapeo para el Listado (findAll)
-  private mapToListResponse(user: User): UserListResponseDto {
-    return {
-      codUser: user.codUser,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      role: user.role as Role,
-      isActive: user.isActive,
-      departments: user.userDepartments?.map((ud) => ud.department.name) || [],
-    };
+  // Helper privado al final del servicio
+  private normalizeBoolean(value: any): boolean | undefined {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return undefined;
   }
 }
