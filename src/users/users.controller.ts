@@ -7,8 +7,6 @@ import {
   Delete,
   Query,
   Patch,
-  UsePipes,
-  ValidationPipe,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -27,12 +25,6 @@ export class UsersController {
   }
 
   @Get()
-  @UsePipes(
-    new ValidationPipe({
-      transform: true,
-      transformOptions: { enableImplicitConversion: true },
-    }),
-  )
   @Auth(Role.ADMIN)
   findAll(@Query() paginationDto: QueryUserDto) {
     return this.usersService.findAll(paginationDto);

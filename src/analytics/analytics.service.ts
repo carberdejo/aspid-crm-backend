@@ -9,6 +9,7 @@ interface QuoteMetricsRaw {
   total: string;
   pending: string;
   approved: string;
+  totalAmount: string;
 }
 
 @Injectable()
@@ -44,12 +45,14 @@ export class AnalyticsService {
         `COUNT(*) FILTER (WHERE quote.status = '${QuoteStatus.APROBADO}')`,
         'approved',
       )
+      .addSelect('SUM(quote.amount)', 'totalAmount')
       .getRawOne<QuoteMetricsRaw>();
 
     return {
       total: parseInt(metrics?.total || '0', 10),
       pending: parseInt(metrics?.pending || '0', 10),
       approved: parseInt(metrics?.approved || '0', 10),
+      totalAmount: parseFloat(metrics?.totalAmount || '0'),
     };
   }
 }

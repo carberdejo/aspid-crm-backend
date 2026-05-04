@@ -1,8 +1,11 @@
+import { QuoteCurrency } from './quote-currency.enum';
+
 // Define la estructura de lo que el frontend recibirá
 export interface MappedQuote {
   id: number;
   quoteNumber: string;
   amount: number;
+  currency: QuoteCurrency;
   status: string;
   type: string;
   createdAt: Date;

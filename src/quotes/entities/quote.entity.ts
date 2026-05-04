@@ -11,6 +11,7 @@ import { Client } from '../../clients/entities/client.entity';
 import { User } from '../../users/entities/user.entity';
 import { ContactClient } from '../../clients/entities/contact-client.entity';
 import { QuoteStatus } from '../interfaces/quote-status.enum';
+import { QuoteCurrency } from '../interfaces/quote-currency.enum';
 
 @Entity({ name: 'quote' })
 export class Quote {
@@ -66,6 +67,15 @@ export class Quote {
     onUpdate: 'CURRENT_TIMESTAMP',
   })
   updatedAt: Date;
+
+  // @IsEnum(QuoteCurrency)
+  // @IsOptional() // Opcional si quieres que por defecto sea PEN
+  @Column({
+    type: 'enum',
+    enum: QuoteCurrency,
+    default: QuoteCurrency.USD, // Valor por defecto
+  })
+  currency?: QuoteCurrency;
 
   // --- RELACIONES ---
 

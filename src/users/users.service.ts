@@ -66,6 +66,9 @@ export class UsersService {
 
   async findAll(queryUserDto: QueryUserDto) {
     const { limit = 10, offset = 0, term, departmentId } = queryUserDto;
+    console.log('--- DEBUG FILTROS ---');
+    console.log('Valor crudo de isActive:', queryUserDto.isActive);
+    console.log('Tipo de dato de isActive:', typeof queryUserDto.isActive);
     const isActive = this.normalizeBoolean(queryUserDto.isActive);
 
     console.log({ term, departmentId, isActive });
@@ -88,7 +91,7 @@ export class UsersService {
       queryBuilder.andWhere('dept.id = :departmentId', { departmentId });
     }
 
-    if (isActive !== undefined && isActive !== null)
+    if (isActive === true || isActive === false)
       queryBuilder.andWhere('user.isActive = :isActive', { isActive });
 
     const [users, total] = await queryBuilder

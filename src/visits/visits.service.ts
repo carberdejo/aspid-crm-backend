@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { CreateVisitDto } from './dto/create-visit.dto';
 import { UpdateVisitDto } from './dto/update-visit.dto';
 import { QueryVisitDto } from './dto/query-visit.dto';
@@ -63,6 +63,7 @@ export class VisitsService {
       departmentId,
       startDate,
       endDate,
+      term,
     } = queryVisitDto;
 
     const queryBuilder = this.visitRepository
@@ -72,6 +73,17 @@ export class VisitsService {
       .leftJoinAndSelect('visit.contact', 'contact');
 
     // Filtros Dinámicos (Mejorado para legibilidad)
+    if (term) {
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          qb.where('visit.visitTopics ILike :term', { term: `%${term}%` })
+            .orWhere('visit.outcomeSummary ILike :term', { term: `%${term}%` })
+            .orWhere('client.commercialName ILike :term', { term: `%${term}%` })
+            .orWhere('contact.firstName ILike :term', { term: `%${term}%` })
+            .orWhere('contact.lastName ILike :term', { term: `%${term}%` });
+        }),
+      );
+    }
     if (clientId)
       queryBuilder.andWhere('visit.clientId = :clientId', { clientId });
 

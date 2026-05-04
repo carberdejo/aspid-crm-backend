@@ -1,12 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
-import {
-  IsBoolean,
-  IsEnum,
-  IsNumber,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { Role } from '../interfaces';
 
@@ -25,11 +19,6 @@ export class QueryUserDto extends PaginationDto {
 
   @IsOptional()
   // @IsBoolean()
-  // @Transform(({ value }) => {
-  //   if (value === 'true') return true;
-  //   if (value === 'false') return false;
-  //   return undefined; // Si no es ninguno, se queda como opcional
-  // })
   isActive?: boolean;
 
   @IsOptional()

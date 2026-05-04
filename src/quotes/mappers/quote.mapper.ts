@@ -1,5 +1,6 @@
 import { Quote } from '../entities/quote.entity';
 import { MappedQuote } from '../interfaces/mapped-quote.interface';
+import { QuoteCurrency } from '../interfaces/quote-currency.enum';
 
 export class QuoteMapper {
   static toResponse(quote: Quote, isDetail: boolean = false) {
@@ -7,6 +8,7 @@ export class QuoteMapper {
       id: Number(quote.id),
       quoteNumber: quote.quoteNumber,
       amount: Number(quote.amount),
+      currency: quote.currency as QuoteCurrency,
       status: quote.status,
       type: quote.type,
       createdAt: quote.createdAt,

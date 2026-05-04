@@ -5,7 +5,9 @@ import {
   IsOptional,
   Min,
   IsDateString,
+  IsEnum,
 } from 'class-validator';
+import { QuoteCurrency } from '../interfaces/quote-currency.enum';
 
 export class CreateQuoteDto {
   @IsString()
@@ -52,4 +54,8 @@ export class CreateQuoteDto {
   @IsDateString()
   @IsNotEmpty()
   createdAt: Date;
+
+  @IsEnum(QuoteCurrency)
+  @IsOptional() // Opcional si quieres que por defecto sea PEN
+  currency?: QuoteCurrency;
 }
