@@ -94,10 +94,7 @@ export class VisitsController {
     description: 'No tienes permisos para realizar esta acción',
   })
   findOne(
-    @Param(
-      'id',
-      new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST }),
-    )
+    @Param('id', new ParseIntPipe())
     id: number,
   ) {
     return this.visitsService.findOne(id);
