@@ -65,6 +65,12 @@ export class VisitsService {
       endDate,
       term,
     } = queryVisitDto;
+    console.log('--- DEBUG FILTROS ---');
+    console.log('Valor crudo de startDate:', queryVisitDto.startDate);
+    console.log('Tipo de dato de startDate:', typeof queryVisitDto.startDate);
+
+    console.log('Valor crudo de endDate:', queryVisitDto.endDate);
+    console.log('Tipo de dato de endDate:', typeof queryVisitDto.endDate);
 
     const queryBuilder = this.visitRepository
       .createQueryBuilder('visit')

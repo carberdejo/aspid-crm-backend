@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsNumber, IsOptional, Min } from 'class-validator';
+import { IsISO8601, IsNumber, IsOptional, Min } from 'class-validator';
 
 export class PaginationDto {
   @ApiPropertyOptional({
@@ -23,21 +23,13 @@ export class PaginationDto {
   @Type(() => Number)
   offset?: number;
 
-  @ApiPropertyOptional({
-    description: 'Fecha de inicio para filtrar visitas (formato ISO8601)',
-    type: Date,
-  })
+  @ApiPropertyOptional({ type: String, example: '2026-04-30' })
   @IsOptional()
-  @IsDate({ message: 'La fecha de inicio debe ser una fecha válida (ISO8601)' })
-  @Type(() => Date) // Convierte el string de la URL a un objeto Date de JS
-  startDate?: Date;
+  @IsISO8601({}, { message: 'Formato de fecha inválido (YYYY-MM-DD)' })
+  startDate?: string;
 
-  @ApiPropertyOptional({
-    description: 'Fecha de fin para filtrar visitas (formato ISO8601)',
-    type: Date,
-  })
+  @ApiPropertyOptional({ type: String, example: '2026-04-30' })
   @IsOptional()
-  @IsDate({ message: 'La fecha de fin debe ser una fecha válida (ISO8601)' })
-  @Type(() => Date)
-  endDate?: Date;
+  @IsISO8601({}, { message: 'Formato de fecha inválido (YYYY-MM-DD)' })
+  endDate?: string;
 }

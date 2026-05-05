@@ -2,13 +2,27 @@ import { Module } from '@nestjs/common';
 import { TransformResponseInterceptor } from './interceptor/transform-response.interceptor';
 import { HttpExceptionFilter } from './filters/http-exception.filters';
 import { AppLoggerService } from './logging/logger.service';
-import { UsersModule } from 'src/users/users.module';
-import { DepartmentsModule } from 'src/departments/departments.module';
-import { ClientsModule } from 'src/clients/clients.module';
 import { CommonValidationService } from './common-validation.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { PurchaseOrder } from 'src/orders/entities/order.entity';
+import { Quote } from 'src/quotes/entities/quote.entity';
+import { User } from 'src/users/entities';
+import { Client, ContactClient } from 'src/clients/entities';
+import { Department } from 'src/departments/entities/department.entity';
+import { Visit } from 'src/visits/entities/visit.entity';
 
 @Module({
-  imports: [UsersModule, ClientsModule, DepartmentsModule],
+  imports: [
+    TypeOrmModule.forFeature([
+      PurchaseOrder,
+      Quote,
+      User,
+      Client,
+      ContactClient,
+      Department,
+      Visit,
+    ]),
+  ],
   providers: [
     TransformResponseInterceptor,
     HttpExceptionFilter,

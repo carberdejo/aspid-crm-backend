@@ -3,7 +3,7 @@ import { CreateQuoteDto } from './dto/create-quote.dto';
 import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Quote } from './entities/quote.entity';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { Brackets, Repository, SelectQueryBuilder } from 'typeorm';
 import { QueryQuoteDto } from './dto/query-quote.dto';
 import { CommonValidationService } from 'src/common/common-validation.service';
 import { ApiException } from 'src/common/exceptions/api.exception';
@@ -64,7 +64,17 @@ export class QuotesService {
   }
 
   async findAll(queryQuoteDto: QueryQuoteDto) {
-    const { limit = 10, offset = 0 } = queryQuoteDto;
+    const {
+      limit = 10,
+      offset = 0,
+      term,
+      clientId,
+      userId,
+      departmentId,
+      status,
+      startDate,
+      endDate,
+    } = queryQuoteDto;
 
     this.logger.log('Fetching quotes with filters...');
 
@@ -84,29 +94,29 @@ export class QuotesService {
 
     // --- FILTROS ESPECÍFICOS DE QUOTE ---
 
-    if (queryQuoteDto.quoteNumber) {
-      queryBuilder.andWhere('quote.quoteNumber ILIKE :quoteNumber', {
-        quoteNumber: `%${queryQuoteDto.quoteNumber}%`,
-      });
+    // 1. BUSCADOR GLOBAL (term) - Unifica varios campos
+    if (term) {
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          qb.where('quote.quoteNumber ILIKE :term', { term: `%${term}%` })
+            .orWhere('client.commercialName ILIKE :term', { term: `%${term}%` })
+            .orWhere('contact.firstName ILIKE :term', { term: `%${term}%` })
+            .orWhere('contact.lastName ILIKE :term', { term: `%${term}%` });
+        }),
+      );
     }
 
-    if (queryQuoteDto.clientId) {
-      queryBuilder.andWhere('quote.clientId = :clientId', {
-        clientId: queryQuoteDto.clientId,
-      });
-    }
+    if (clientId)
+      queryBuilder.andWhere('quote.clientId = :clientId', { clientId });
 
-    if (queryQuoteDto.userId) {
-      queryBuilder.andWhere('quote.userId = :userId', {
-        userId: queryQuoteDto.userId,
-      });
-    }
+    if (userId) queryBuilder.andWhere('quote.userId = :userId', { userId });
 
-    if (queryQuoteDto.status) {
-      queryBuilder.andWhere('quote.status = :status', {
-        status: queryQuoteDto.status,
+    if (departmentId)
+      queryBuilder.andWhere('quote.departmentId = :departmentId', {
+        departmentId,
       });
-    }
+
+    if (status) queryBuilder.andWhere('quote.status = :status', { status });
 
     if (queryQuoteDto.type) {
       queryBuilder.andWhere('quote.type = :type', {
@@ -114,44 +124,24 @@ export class QuotesService {
       });
     }
 
-    if (queryQuoteDto.collaboratorId) {
-      queryBuilder.andWhere('quote.collaboratorId = :collaboratorId', {
-        collaboratorId: queryQuoteDto.collaboratorId,
-      });
-    }
-
     // --- FILTROS HEREDADOS (PAGINATION / DATES) ---
 
-    if (queryQuoteDto.startDate) {
-      queryBuilder.andWhere('quote.createdAt >= :startDate', {
-        startDate: queryQuoteDto.startDate,
-      });
-    }
+    if (startDate)
+      queryBuilder.andWhere('quote.createdAt >= :startDate', { startDate });
 
-    if (queryQuoteDto.endDate) {
-      queryBuilder.andWhere('quote.createdAt <= :endDate', {
-        endDate: queryQuoteDto.endDate,
-      });
-    }
+    if (endDate)
+      queryBuilder.andWhere('quote.createdAt <= :endDate', { endDate });
 
     // Ordenar por fecha de creación descendente
-    queryBuilder.orderBy('quote.createdAt', 'DESC');
+    const [quotes, total] = await queryBuilder
+      .orderBy('quote.createdAt', 'DESC')
+      .take(limit)
+      .skip(offset)
+      .getManyAndCount();
 
-    // Aplicar paginación
-    queryBuilder.limit(limit);
-    queryBuilder.offset(+offset);
-
-    const [quotes, total] = await queryBuilder.getManyAndCount();
-
-    // Mapeo a respuesta optimizada
-    const optimizedQuotes = quotes.map((quote) =>
-      QuoteMapper.toResponse(quote, false),
-    );
-
-    this.logger.log(`Retrieved ${quotes.length} quotes`);
     return {
       data: {
-        items: optimizedQuotes,
+        items: quotes.map((quote) => QuoteMapper.toResponse(quote, false)),
         total,
         limit,
         offset,

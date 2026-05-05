@@ -3,6 +3,8 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Client, ContactClient } from 'src/clients/entities';
 import { Department } from 'src/departments/entities/department.entity';
+import { Quote } from 'src/quotes/entities/quote.entity';
+import { QuoteNotFoundException } from 'src/quotes/exceptions/quote.exceptions';
 import { User } from 'src/users/entities';
 import { Repository } from 'typeorm';
 
@@ -16,6 +18,8 @@ export class CommonValidationService {
     private contactRepository: Repository<ContactClient>,
     @InjectRepository(Department)
     private departmentRepository: Repository<Department>,
+    @InjectRepository(Quote)
+    private readonly quoteRepository: Repository<Quote>,
   ) {}
 
   async findUserById(id: number) {
@@ -69,12 +73,25 @@ export class CommonValidationService {
       where: { id: id },
     });
     if (!department) {
-      this.logger.log(`Departamento con departmentId ${id} no encontrado`);
       throw new NotFoundException(`Departamento con ID ${id} no encontrado`);
     }
     this.logger.log(
       `Departamento ${department.name}  con departmentId ${department.id} encontrado`,
     );
     return department;
+  }
+
+  async findQuoteById(id: number) {
+    // Validar que la cotización exista
+    const quote = await this.quoteRepository.findOne({
+      where: { id: id },
+    });
+    if (!quote) throw new QuoteNotFoundException(id);
+
+    this.logger.log(
+      `Cotización ${quote.quoteNumber}  con quoteId ${quote.id} encontrada`,
+    );
+
+    return quote;
   }
 }

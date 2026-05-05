@@ -45,8 +45,8 @@ import { AnalyticsModule } from './analytics/analytics.module';
         schema: configService.get('POSTGRES_SCHEMA'),
         autoLoadEntities: true,
         synchronize: false, // No usar synchronize en producción, ya que puede causar pérdida de datos. Usar migraciones en su lugar.
-        logger: 'advanced-console', // Configurar el logger para mostrar consultas SQL en la consola
-        logging: ['query', 'error'], // Habilitar el logging de consultas y errores para facilitar la depuración y el monitoreo de la base de datos
+        // logger: 'simple-console', // Configurar el logger para mostrar consultas SQL en la consola
+        // logging: ['query', 'error'], // Habilitar el logging de consultas y errores para facilitar la depuración y el monitoreo de la base de datos
       }),
     }),
     CommonModule,

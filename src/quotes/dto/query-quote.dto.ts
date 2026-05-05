@@ -5,7 +5,7 @@ import { PaginationDto } from 'src/common/dto/pagination.dto';
 export class QueryQuoteDto extends PaginationDto {
   @IsOptional()
   @IsString()
-  quoteNumber?: string;
+  term?: string; // Buscador global unificado
 
   @IsOptional()
   @Type(() => Number) // Importante para que el string de la URL pase a number
@@ -38,9 +38,4 @@ export class QueryQuoteDto extends PaginationDto {
   @IsOptional()
   @IsString()
   orderType?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  collaboratorId?: number;
 }

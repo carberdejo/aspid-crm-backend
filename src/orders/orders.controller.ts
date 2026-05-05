@@ -6,23 +6,25 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
-import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import { CreatePurchaseOrderDto } from './dto/create-order.dto';
+import { QueryPurchaseOrderDto } from './dto/query-purchase-order.dto';
 
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
-  create(@Body() createOrderDto: CreateOrderDto) {
+  create(@Body() createOrderDto: CreatePurchaseOrderDto) {
     return this.ordersService.create(createOrderDto);
   }
 
   @Get()
-  findAll() {
-    return this.ordersService.findAll();
+  findAll(@Query() queryDto: QueryPurchaseOrderDto) {
+    return this.ordersService.findAll(queryDto);
   }
 
   @Get(':id')
