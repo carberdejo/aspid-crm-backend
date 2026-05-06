@@ -1,10 +1,16 @@
 // src/common/services/common-validation.service.ts
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Client, ContactClient } from 'src/clients/entities';
 import { Department } from 'src/departments/entities/department.entity';
 import { Quote } from 'src/quotes/entities/quote.entity';
 import { QuoteNotFoundException } from 'src/quotes/exceptions/quote.exceptions';
+import { QuoteStatus } from 'src/quotes/interfaces/quote-status.enum';
 import { User } from 'src/users/entities';
 import { Repository } from 'typeorm';
 
@@ -91,7 +97,19 @@ export class CommonValidationService {
     this.logger.log(
       `Cotización ${quote.quoteNumber}  con quoteId ${quote.id} encontrada`,
     );
-
     return quote;
+  }
+
+  async validateQuoteAprobed(quoteId: number) {
+    const quote = await this.findQuoteById(quoteId);
+    if ((quote.status as QuoteStatus) === QuoteStatus.APROBADO) {
+      this.logger.log(
+        `La cotización con ID ${quoteId} ya está aprobada. Estado actual: ${quote.status}`,
+      );
+      throw new BadRequestException(
+        `La cotización con ID ${quoteId} ya está aprobada. Estado actual: ${quote.status}`,
+      );
+    }
+    return true;
   }
 }

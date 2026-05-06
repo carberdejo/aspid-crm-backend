@@ -1,6 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CreatePurchaseOrderDto } from './dto/create-order.dto';
-import { UpdateOrderDto } from './dto/update-order.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PurchaseOrder } from './entities/order.entity';
 import { Brackets, DataSource, Repository } from 'typeorm';
@@ -8,6 +7,7 @@ import { QueryPurchaseOrderDto } from './dto/query-purchase-order.dto';
 import { CommonValidationService } from 'src/common/common-validation.service';
 import { Quote } from 'src/quotes/entities/quote.entity';
 import { QuoteStatus } from 'src/quotes/interfaces/quote-status.enum';
+import { PurchaseOrderMapper } from './mappers/orders.mapper';
 
 @Injectable()
 export class OrdersService {
@@ -26,7 +26,9 @@ export class OrdersService {
     await queryRunner.startTransaction();
 
     try {
-      await this.commonValidationService.findQuoteById(createPoDto.quoteId);
+      await this.commonValidationService.validateQuoteAprobed(
+        createPoDto.quoteId,
+      );
       const newPo = this.poRepository.create(createPoDto);
       const savedPo = await this.poRepository.save(newPo);
 
@@ -47,39 +49,64 @@ export class OrdersService {
   }
 
   async findAll(queryDto: QueryPurchaseOrderDto) {
-    const { limit = 10, offset = 0, term } = queryDto;
+    const {
+      limit = 10,
+      offset = 0,
+      term,
+      order,
+      startDate,
+      endDate,
+    } = queryDto;
     const queryBuilder = this.poRepository
       .createQueryBuilder('po')
-      .leftJoinAndSelect('po.quote', 'quote');
+      .leftJoinAndSelect('po.quote', 'quote')
+      .leftJoin('quote.client', 'client')
+      .select([
+        'po.id',
+        'po.poNumber',
+        'po.receivedAt',
+        'quote.quoteNumber',
+        'client.commercialName',
+      ]);
 
     if (term) {
       queryBuilder.andWhere(
         new Brackets((qb) => {
-          qb.where('po.poNumber ILIKE :term', { term: `%${term}%` }).orWhere(
-            'quote.quoteNumber ILIKE :term',
-            { term: `%${term}%` },
-          );
+          qb.where('po.poNumber ILIKE :term', { term: `%${term}%` })
+            .orWhere('quote.quoteNumber ILIKE :term', { term: `%${term}%` })
+            .orWhere('client.commercialName ILIKE :term', {
+              term: `%${term}%`,
+            });
         }),
       );
     }
+    if (startDate)
+      queryBuilder.andWhere('po.receivedAt >= :startDate', { startDate });
+
+    if (endDate)
+      queryBuilder.andWhere('po.receivedAt <= :endDate', { endDate });
 
     const [items, total] = await queryBuilder
       .take(limit)
       .skip(offset)
-      .orderBy('po.id', 'DESC')
+      .orderBy('po.id', order)
       .getManyAndCount();
 
-    return { items, total };
+    return {
+      items: items.map((po) => PurchaseOrderMapper.toListResponse(po)),
+      total,
+      limit,
+      offset,
+    };
   }
 
   async findOne(id: number) {
     const po = await this.poRepository
       .createQueryBuilder('po')
       .leftJoinAndSelect('po.quote', 'quote')
-      .leftJoin('quote.client', 'client')
-      .addSelect(['client.id', 'client.commercialName', 'client.ruc'])
-      .leftJoin('quote.contact', 'contact')
-      .addSelect(['contact.id', 'contact.firstName', 'contact.lastName'])
+      .leftJoinAndSelect('quote.client', 'client')
+      .leftJoinAndSelect('quote.contact', 'contact')
+      .leftJoinAndSelect('quote.user', 'user') // Vendedor que creó la cotización
       .where('po.id = :id', { id })
       .getOne();
 
@@ -87,14 +114,14 @@ export class OrdersService {
       throw new NotFoundException(`Orden de Compra con ID ${id} no encontrada`);
     }
 
-    return po;
+    return PurchaseOrderMapper.toResponse(po);
   }
 
-  update(id: number, updateOrderDto: UpdateOrderDto) {
-    return `This action updates a #${id} order`;
-  }
+  // update(id: number, updateOrderDto: UpdateOrderDto) {
+  //   return `This action updates a #${id} order`;
+  // }
 
-  remove(id: number) {
-    return `This action removes a #${id} order`;
-  }
+  // remove(id: number) {
+  //   return `This action removes a #${id} order`;
+  // }
 }

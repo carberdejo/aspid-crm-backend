@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsISO8601, IsNumber, IsOptional, Min } from 'class-validator';
+import { IsEnum, IsISO8601, IsNumber, IsOptional, Min } from 'class-validator';
+import { SortOrder } from '../interfaces/order-enum.interface';
 
 export class PaginationDto {
   @ApiPropertyOptional({
@@ -32,4 +33,8 @@ export class PaginationDto {
   @IsOptional()
   @IsISO8601({}, { message: 'Formato de fecha inválido (YYYY-MM-DD)' })
   endDate?: string;
+
+  @IsOptional()
+  @IsEnum(SortOrder)
+  order?: SortOrder = SortOrder.DESC; // Por defecto DESC
 }

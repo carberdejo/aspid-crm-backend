@@ -128,8 +128,8 @@ export class VisitsService {
     const visit = await this.visitRepository
       .createQueryBuilder('visit')
       .leftJoinAndSelect('visit.user', 'user')
-      .leftJoin('visit.client', 'client')
-      .leftJoin('visit.contact', 'contact')
+      .leftJoinAndSelect('visit.client', 'client')
+      .leftJoinAndSelect('visit.contact', 'contact')
       .where('visit.id = :id', { id })
       .getOne();
 
@@ -137,6 +137,7 @@ export class VisitsService {
 
     this.logger.log(`Visit retrieved successfully`);
     return VisitMapper.toResponse(visit, true);
+    return visit;
   }
 
   async update(id: number, updateVisitDto: UpdateVisitDto) {
