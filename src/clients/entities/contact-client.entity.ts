@@ -30,6 +30,9 @@ export class ContactClient {
   @Column({ type: 'varchar', length: 20 })
   phone: string;
 
+  @Column({ name: 'country_code', type: 'varchar', length: 5, default: '51' })
+  countryCode: string;
+
   @ApiProperty({ example: 'juan.perez@empresa.com' })
   @Column({ type: 'varchar', length: 100 })
   email: string;

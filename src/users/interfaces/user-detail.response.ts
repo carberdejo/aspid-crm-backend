@@ -4,6 +4,7 @@ export interface UserDetailResponseDto {
   lastName: string;
   email: string;
   isActive: boolean;
+  countryCode: string;
   role: string;
   country: string;
   phone: string;

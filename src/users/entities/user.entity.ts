@@ -55,6 +55,9 @@ export class User {
   @Column('varchar', { nullable: true })
   phone: string;
 
+  @Column({ name: 'country_code', type: 'varchar', length: 5, default: '51' })
+  countryCode: string;
+
   @ApiProperty({
     type: () => [UserDepartment],
     description: 'Relación con los departamentos asignados',

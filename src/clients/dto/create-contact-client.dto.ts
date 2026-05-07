@@ -1,11 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsNotEmpty,
-  IsString,
-  MaxLength,
-  IsNumber,
-  IsOptional,
-} from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength, IsNumber } from 'class-validator';
 
 export class CreateContactClientDto {
   @ApiProperty({
@@ -47,6 +41,17 @@ export class CreateContactClientDto {
   @IsNotEmpty({ message: 'El teléfono del contacto es obligatorio' })
   @MaxLength(20)
   phone: string;
+
+  @ApiProperty({
+    description: 'Código de país para el número de teléfono',
+    example: '51',
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'El código de país es obligatorio' })
+  @MaxLength(5, {
+    message: 'El código de país no puede tener más de 5 caracteres',
+  })
+  countryCode: string;
 
   @ApiProperty({
     description: 'ID del cliente al que pertenece este contacto',

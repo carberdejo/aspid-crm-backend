@@ -14,6 +14,8 @@ export class UserMapper {
       email: user.email,
       role: user.role as Role,
       isActive: user.isActive,
+      countryCode: user.countryCode,
+      phone: user.phone,
       // Simplificamos los nombres de departamentos para la tabla
       departments: user.userDepartments?.map((ud) => ud.department.name) || [],
     };
@@ -28,6 +30,7 @@ export class UserMapper {
       isActive: user.isActive,
       role: user.role,
       country: user.country,
+      countryCode: user.countryCode,
       phone: user.phone,
       userDepartments: user.userDepartments.map((ud) => ({
         id: ud.id.toString(),

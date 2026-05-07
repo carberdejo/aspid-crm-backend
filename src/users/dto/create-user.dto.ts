@@ -7,6 +7,7 @@ import {
   IsNotEmpty,
   IsNumber,
   IsString,
+  MaxLength,
   MinLength,
 } from 'class-validator';
 import { Role } from '../interfaces/role.interface';
@@ -81,6 +82,17 @@ export class CreateUserDto {
   @IsString()
   @IsNotEmpty({ message: 'El número de teléfono es obligatorio' })
   phone: string;
+
+  @ApiProperty({
+    description: 'Código de país para el número de teléfono',
+    example: '51',
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'El código de país es obligatorio' })
+  @MaxLength(5, {
+    message: 'El código de país no puede tener más de 5 caracteres',
+  })
+  countryCode: string;
 
   @ApiProperty({
     description: 'Lista de IDs de departamentos asignados',

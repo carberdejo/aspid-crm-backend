@@ -8,4 +8,6 @@ export interface UserListResponseDto {
   isActive: boolean;
   role: Role;
   departments: string[]; // Solo nombres
+  countryCode: string;
+  phone: string;
 }
