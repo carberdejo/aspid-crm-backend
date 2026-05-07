@@ -100,6 +100,7 @@ export class ClientsService {
 
     // 3. Ejecución
     const [clients, total] = await queryBuilder
+      .orderBy('client.createdAt', query.order || 'DESC')
       .skip(offset)
       .take(limit)
       .getManyAndCount();
