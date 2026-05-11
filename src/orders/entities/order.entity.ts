@@ -1,3 +1,4 @@
+import { Invoice } from 'src/invoices/entities/invoice.entity';
 import { Quote } from 'src/quotes/entities/quote.entity';
 import {
   Entity,
@@ -5,7 +6,9 @@ import {
   Column,
   OneToOne,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
+import { BillingStatus } from '../interfaces/billing-status.enum';
 
 @Entity({ name: 'purchase_order' })
 export class PurchaseOrder {
@@ -21,7 +24,19 @@ export class PurchaseOrder {
   @Column({ name: 'quote_id', type: 'bigint' })
   quoteId: number;
 
+  @Column({
+    name: 'billing_status',
+    type: 'enum',
+    enum: BillingStatus,
+    default: BillingStatus.PENDIENTE_FACTURACION,
+  })
+  billingStatus: BillingStatus;
+
   @OneToOne(() => Quote)
   @JoinColumn({ name: 'quote_id' })
   quote: Quote;
+
+  // Relación: Una OC puede tener muchas Facturas (parciales o una sola completa)
+  @OneToMany(() => Invoice, (invoice) => invoice.order)
+  invoices: Invoice[];
 }

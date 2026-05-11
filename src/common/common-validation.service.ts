@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Client, ContactClient } from 'src/clients/entities';
 import { Department } from 'src/departments/entities/department.entity';
+import { PurchaseOrder } from 'src/orders/entities/order.entity';
 import { Quote } from 'src/quotes/entities/quote.entity';
 import { QuoteNotFoundException } from 'src/quotes/exceptions/quote.exceptions';
 import { QuoteStatus } from 'src/quotes/interfaces/quote-status.enum';
@@ -26,8 +27,11 @@ export class CommonValidationService {
     private departmentRepository: Repository<Department>,
     @InjectRepository(Quote)
     private readonly quoteRepository: Repository<Quote>,
+    @InjectRepository(PurchaseOrder)
+    private readonly purchaseOrderRepository: Repository<PurchaseOrder>,
   ) {}
 
+  //? Método específico para validar que un usuario exista antes de asignarlo a una OC o una Cotización
   async findUserById(id: number) {
     // Validar que el usuario exista
     const user = await this.userRepository.findOne({
@@ -43,6 +47,7 @@ export class CommonValidationService {
     return user;
   }
 
+  //? Método específico para validar que un cliente exista antes de asignarlo a una OC o una Cotización
   async findClientById(id: number) {
     // Validar que el cliente exista
     const client = await this.clientRepository.findOne({
@@ -58,6 +63,7 @@ export class CommonValidationService {
     return client;
   }
 
+  //? Método específico para validar que un contacto de cliente exista antes de asignarlo a una OC o una Cotización
   async findContactClientById(id: number) {
     // Validar que el cliente exista
     const contact = await this.contactRepository.findOne({
@@ -73,6 +79,7 @@ export class CommonValidationService {
     return contact;
   }
 
+  //? Método específico para validar que un departamento exista antes de asignarlo a una OC o una Cotización
   async findDepartmentById(id: number) {
     // Validar que el departamento exista
     const department = await this.departmentRepository.findOne({
@@ -87,6 +94,7 @@ export class CommonValidationService {
     return department;
   }
 
+  //? Método específico para validar que una cotización exista antes de crear una OC o una Factura
   async findQuoteById(id: number) {
     // Validar que la cotización exista
     const quote = await this.quoteRepository.findOne({
@@ -100,6 +108,7 @@ export class CommonValidationService {
     return quote;
   }
 
+  //? Metodo específico para validar que la cotización no esté aprobada antes de crear una OC o una Factura
   async validateQuoteAprobed(quoteId: number) {
     const quote = await this.findQuoteById(quoteId);
     if ((quote.status as QuoteStatus) === QuoteStatus.APROBADO) {
@@ -111,5 +120,18 @@ export class CommonValidationService {
       );
     }
     return true;
+  }
+
+  async validatePurchaseOrder(orderId: number) {
+    const existingPO = await this.purchaseOrderRepository.findOne({
+      where: { id: orderId },
+      relations: ['quote'],
+    });
+    if (!existingPO) {
+      throw new BadRequestException(
+        `No existe una Orden de Compra CON ID: ${orderId}`,
+      );
+    }
+    return existingPO;
   }
 }

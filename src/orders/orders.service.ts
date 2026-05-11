@@ -53,6 +53,9 @@ export class OrdersService {
       limit = 10,
       offset = 0,
       term,
+      departmentId,
+      clientId,
+      userId,
       order,
       startDate,
       endDate,
@@ -80,6 +83,18 @@ export class OrdersService {
         }),
       );
     }
+    if (queryDto.departmentId) {
+      queryBuilder.andWhere('quote.departmentId = :departmentId', {
+        departmentId,
+      });
+    }
+    if (queryDto.clientId) {
+      queryBuilder.andWhere('quote.clientId = :clientId', { clientId });
+    }
+    if (queryDto.userId) {
+      queryBuilder.andWhere('quote.userId = :userId', { userId });
+    }
+
     if (startDate)
       queryBuilder.andWhere('po.receivedAt >= :startDate', { startDate });
 

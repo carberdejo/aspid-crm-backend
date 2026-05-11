@@ -14,6 +14,7 @@ import { ClientsModule } from './clients/clients.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { OrdersModule } from './orders/orders.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { InvoicesModule } from './invoices/invoices.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     QuotesModule,
     OrdersModule,
     AnalyticsModule,
+    InvoicesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
