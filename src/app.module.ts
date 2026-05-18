@@ -16,6 +16,7 @@ import { OrdersModule } from './orders/orders.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { PortfoliosModule } from './portfolios/portfolios.module';
+import { CatalogsModule } from './catalogs/catalogs.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { PortfoliosModule } from './portfolios/portfolios.module';
     AnalyticsModule,
     InvoicesModule,
     PortfoliosModule,
+    CatalogsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

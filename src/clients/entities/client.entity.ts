@@ -6,8 +6,12 @@ import {
   CreateDateColumn,
   OneToMany,
   Index,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { ContactClient } from './contact-client.entity';
+import { IndustrySegment } from 'src/catalogs/entities/industry-segment.entity';
+import { Portfolio } from 'src/portfolios/entities/portfolio.entity';
 
 @Entity({ name: 'client' })
 export class Client {
@@ -40,10 +44,26 @@ export class Client {
   })
   createdAt: Date;
 
+  @ApiProperty({ example: 1, description: 'ID del segmento industrial' })
+  @Column({ name: 'segment_id', type: 'bigint' })
+  segmentId: number;
+
+  @Column({ type: 'bigint', name: 'portfolio_id', nullable: true })
+  portfolioId: number;
+
   @ApiProperty({
     type: () => [ContactClient],
     description: 'Lista de contactos asociados',
   })
   @OneToMany(() => ContactClient, (contact) => contact.client)
   contacts: ContactClient[];
+
+  // Aquí podrías agregar la relación con IndustrySegment si es necesario
+  @ManyToOne(() => IndustrySegment)
+  @JoinColumn({ name: 'segment_id' })
+  segment: IndustrySegment;
+
+  @ManyToOne(() => Portfolio)
+  @JoinColumn({ name: 'portfolio_id' })
+  portfolio: Portfolio;
 }

@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsNumber, IsOptional, IsString } from 'class-validator';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 
 export class QueryClientDto extends PaginationDto {
@@ -11,4 +12,14 @@ export class QueryClientDto extends PaginationDto {
   @IsOptional()
   @IsString()
   term?: string;
+
+  @IsNumber()
+  @Type(() => Number)
+  @IsOptional()
+  portfolioId: number; // Para filtrar clientes por cartera (control de accesos)
+
+  @IsNumber()
+  @Type(() => Number)
+  @IsOptional()
+  segmentId: number; // Para filtrar clientes por segmento industrial
 }

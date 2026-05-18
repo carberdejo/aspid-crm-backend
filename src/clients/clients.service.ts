@@ -30,9 +30,8 @@ export class ClientsService {
     const existingClient = await this.clientRepository.findOneBy({
       ruc: createClientDto.ruc,
     });
-    if (existingClient) {
+    if (existingClient)
       throw new ClientRucAlreadyExistsException(createClientDto.ruc);
-    }
 
     const client = this.clientRepository.create(createClientDto);
     const savedClient = await this.clientRepository.save(client);
@@ -77,9 +76,14 @@ export class ClientsService {
   }
 
   async findAll(@Query() query: QueryClientDto) {
-    const { term, limit = 10, offset = 0 } = query;
+    const { term, limit = 10, offset = 0, portfolioId, segmentId } = query;
 
-    const queryBuilder = this.clientRepository.createQueryBuilder('client');
+    const queryBuilder = this.clientRepository
+      .createQueryBuilder('client')
+      .leftJoin('client.segment', 'segment')
+      .addSelect(['segment.id', 'segment.code'])
+      .leftJoin('client.portfolio', 'portfolio')
+      .addSelect(['portfolio.id', 'portfolio.code']);
 
     // 1. Agregamos el COUNT como una subconsulta mapeada a la propiedad 'contacts'
     queryBuilder.loadRelationCountAndMap(
@@ -97,6 +101,14 @@ export class ClientsService {
         }),
       );
     }
+
+    if (portfolioId)
+      queryBuilder.andWhere('client.portfolioId = :portfolioId', {
+        portfolioId,
+      });
+
+    if (segmentId)
+      queryBuilder.andWhere('client.segmentId = :segmentId', { segmentId });
 
     // 3. Ejecución
     const [clients, total] = await queryBuilder

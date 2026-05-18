@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateClientDto {
   @ApiProperty({
@@ -43,4 +49,14 @@ export class CreateClientDto {
   @IsNotEmpty({ message: 'La dirección es obligatoria' })
   @MaxLength(255)
   address: string;
+
+  @IsNumber()
+  @IsNotEmpty({ message: 'El segmento industrial es obligatorio' })
+  segmentId: number; // Nueva Llave Foránea
+
+  @IsNumber()
+  @IsNotEmpty({
+    message: 'La cartera es obligatoria para el control de accesos',
+  })
+  portfolioId: number; // Nueva Llave Foránea
 }

@@ -22,6 +22,8 @@ export class Portfolio {
   isActive: boolean;
 
   // Relación a la tabla intermedia
-  @OneToMany(() => PortfolioUser, (portfolioUser) => portfolioUser.portfolio)
+  @OneToMany(() => PortfolioUser, (portfolioUser) => portfolioUser.portfolio, {
+    cascade: true,
+  })
   users: PortfolioUser[];
 }

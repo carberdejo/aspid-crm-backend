@@ -1,7 +1,16 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Query,
+} from '@nestjs/common';
 import { PortfoliosService } from './portfolios.service';
 import { CreatePortfolioDto } from './dto/create-portfolio.dto';
 import { UpdatePortfolioDto } from './dto/update-portfolio.dto';
+import { QueryPortfolioDto } from './dto/query-portfolio.dto';
 
 @Controller('portfolios')
 export class PortfoliosController {
@@ -13,8 +22,8 @@ export class PortfoliosController {
   }
 
   @Get()
-  findAll() {
-    return this.portfoliosService.findAll();
+  findAll(@Query() paginationDto: QueryPortfolioDto) {
+    return this.portfoliosService.findAll(paginationDto);
   }
 
   @Get(':id')
@@ -23,12 +32,15 @@ export class PortfoliosController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updatePortfolioDto: UpdatePortfolioDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updatePortfolioDto: UpdatePortfolioDto,
+  ) {
     return this.portfoliosService.update(+id, updatePortfolioDto);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.portfoliosService.remove(+id);
+  @Patch(':id/deactivate')
+  deactivate(@Param('id') id: string) {
+    return this.portfoliosService.deactivate(+id);
   }
 }
