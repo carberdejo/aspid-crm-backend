@@ -44,10 +44,26 @@ export class Client {
   })
   createdAt: Date;
 
+  @ApiProperty({ example: 'San Isidro', description: 'Distrito del cliente' })
+  @Column({ type: 'varchar', length: 100 })
+  district: string;
+
+  @ApiProperty({ example: 'Lima', description: 'Provincia del cliente' })
+  @Column({ type: 'varchar', length: 100 })
+  province: string;
+
+  @ApiProperty({ example: 'Este', description: 'Zona del cliente' })
+  @Column({ type: 'varchar', length: 100 })
+  zone: string;
+
   @ApiProperty({ example: 1, description: 'ID del segmento industrial' })
   @Column({ name: 'segment_id', type: 'bigint' })
   segmentId: number;
 
+  @ApiProperty({
+    example: 1,
+    description: 'ID de la cartera a la que pertenece el cliente',
+  })
   @Column({ type: 'bigint', name: 'portfolio_id', nullable: true })
   portfolioId: number;
 
