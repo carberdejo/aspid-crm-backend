@@ -1,9 +1,14 @@
-import { Injectable, Logger, Query } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, DataSource, Repository } from 'typeorm';
 import { Client, ContactClient } from './entities';
 import { QueryClientDto } from './dto/query-client.dto';
 import { ApiException } from 'src/common/exceptions/api.exception';
@@ -14,6 +19,8 @@ import {
   ClientRucAlreadyExistsException,
   ContactClientNotFoundException,
 } from './exceptions/client.exceptions';
+import { User } from 'src/users/entities';
+import { PortfolioUser } from 'src/portfolios/entities/portfolio-user.entity';
 
 @Injectable()
 export class ClientsService {
@@ -24,6 +31,7 @@ export class ClientsService {
     @InjectRepository(ContactClient)
     private readonly contactClientRepository: Repository<ContactClient>,
     private readonly configService: ConfigService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(createClientDto: CreateClientDto) {
@@ -75,7 +83,7 @@ export class ClientsService {
     };
   }
 
-  async findAll(@Query() query: QueryClientDto) {
+  async findAll(query: QueryClientDto, currentUser: User) {
     const { term, limit = 10, offset = 0, portfolioId, segmentId } = query;
 
     const queryBuilder = this.clientRepository
@@ -91,7 +99,25 @@ export class ClientsService {
       'client.contacts', // La relación definida en tu Entidad Client
     );
 
-    // 2. Filtros
+    // 2. FILTRO DE SEGURIDAD INTERNO (Para usuarios no-admin)
+    // Usamos "Return Early" para despachar rápido si el usuario no tiene accesos
+    if (currentUser.role !== 'admin') {
+      const allowedIds = await this.getUserPortfolioIds(currentUser.id);
+
+      if (allowedIds.length === 0) return this.emptyResponse(limit, offset);
+      if (portfolioId && !allowedIds.includes(+portfolioId)) {
+        throw new ForbiddenException('No tienes permisos para esta cartera.');
+      }
+
+      // Si no filtró por una cartera específica, le inyectamos todas sus carteras permitidas
+      if (!portfolioId) {
+        queryBuilder.andWhere('client.portfolioId IN (:...allowedIds)', {
+          allowedIds,
+        });
+      }
+    }
+
+    // FILTERS
     if (term) {
       queryBuilder.andWhere(
         new Brackets((qb) => {
@@ -228,12 +254,7 @@ export class ClientsService {
 
         if (!response.ok) {
           if (response.status === 404) {
-            throw new ApiException(
-              404,
-              `RUC ${ruc} no encontrado en SUNAT`,
-              [],
-              404,
-            );
+            throw new NotFoundException(`RUC ${ruc} no encontrado en SUNAT`);
           }
           throw new ApiException(
             response.status,
@@ -280,5 +301,18 @@ export class ClientsService {
         500,
       );
     }
+  }
+
+  private async getUserPortfolioIds(userId: number): Promise<number[]> {
+    const assignments = await this.dataSource
+      .getRepository(PortfolioUser)
+      .find({ where: { userId } });
+    return assignments.map((a) => Number(a.portfolioId));
+  }
+
+  private emptyResponse(limit: number, offset: number) {
+    return {
+      data: { items: [], total: 0, limit: +limit, offset: +offset },
+    };
   }
 }

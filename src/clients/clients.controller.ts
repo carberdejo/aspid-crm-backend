@@ -21,8 +21,9 @@ import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { QueryClientDto } from './dto/query-client.dto';
 import { CreateContactClientDto } from './dto';
-import { Auth } from 'src/auth/decorators';
+import { Auth, CurrentUser } from 'src/auth/decorators';
 import { Role } from 'src/users/interfaces';
+import { User } from 'src/users/entities';
 
 @ApiTags('clients')
 @ApiBearerAuth('access-token')
@@ -59,8 +60,8 @@ export class ClientsController {
   @ApiForbiddenResponse({
     description: 'No tienes permisos para realizar esta acción',
   })
-  findAll(@Query() query: QueryClientDto) {
-    return this.clientsService.findAll(query);
+  findAll(@Query() query: QueryClientDto, @CurrentUser() user: User) {
+    return this.clientsService.findAll(query, user);
   }
 
   @Get('sunat/:ruc')
