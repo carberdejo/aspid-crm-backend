@@ -1,6 +1,7 @@
 import { Role } from './role.interface';
 
 export interface UserListResponseDto {
+  id: number; // Agregado para facilitar la gestión en el frontend
   codUser: string;
   firstName: string;
   lastName: string;

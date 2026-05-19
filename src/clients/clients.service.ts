@@ -222,7 +222,10 @@ export class ClientsService {
 
   async consultSunatApi(ruc: string): Promise<{
     message: string;
-    data: Pick<RucResponse, 'ruc' | 'razonSocial' | 'direccion'>;
+    data: Pick<
+      RucResponse,
+      'ruc' | 'razonSocial' | 'direccion' | 'distrito' | 'provincia'
+    >;
   }> {
     try {
       this.logger.log(`Consultando RUC ${ruc} en API de SUNAT`);
@@ -272,6 +275,8 @@ export class ClientsService {
             ruc: data.ruc,
             razonSocial: data.razonSocial,
             direccion: data.direccion,
+            distrito: data.distrito,
+            provincia: data.provincia,
           },
         };
       } catch (fetchError) {

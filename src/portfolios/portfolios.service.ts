@@ -49,7 +49,7 @@ export class PortfoliosService {
           { province: ILike(`%${term}%`) },
         ]
       : {};
-    const [data, total] = await this.portfolioRepo.findAndCount({
+    const [items, total] = await this.portfolioRepo.findAndCount({
       where: whereCondition,
       take: limit,
       skip: offset,
@@ -74,7 +74,14 @@ export class PortfoliosService {
         },
       },
     });
-    return { data, total, limit, offset };
+    return {
+      data: {
+        items,
+        total,
+        limit,
+        offset,
+      },
+    };
   }
 
   async findOne(id: number) {

@@ -72,7 +72,8 @@ export class IndustrySegmentsService {
     if (!segment) throw new NotFoundException('Segmento no encontrado');
 
     segment.isActive = false;
-    return this.segmentRepo.save(segment);
+    await this.segmentRepo.save(segment);
+    return { message: 'Segmento desactivado exitosamente' };
   }
 
   // REACTIVAR (En caso el Admin se arrepienta)
@@ -81,6 +82,7 @@ export class IndustrySegmentsService {
     if (!segment) throw new NotFoundException('Segmento no encontrado');
 
     segment.isActive = true;
-    return this.segmentRepo.save(segment);
+    await this.segmentRepo.save(segment);
+    return { message: 'Segmento reactivado exitosamente' };
   }
 }
