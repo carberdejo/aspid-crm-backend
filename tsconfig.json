@@ -15,7 +15,7 @@
       "src/*": ["src/*"],
       "@/*": ["src/*"]
     },
-    "types": ["jest", "node"], // <--- AGREGA ESTA LÍNEA AQUÍ
+    "types": ["jest", "node","multer"], // <--- AGREGA ESTA LÍNEA AQUÍ
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,

@@ -8,6 +8,9 @@ import {
   Query,
   ParseIntPipe,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -24,7 +27,8 @@ import { CreateContactClientDto } from './dto';
 import { Auth, CurrentUser } from 'src/auth/decorators';
 import { Role } from 'src/users/interfaces';
 import { User } from 'src/users/entities';
-
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Express } from 'express';
 @ApiTags('clients')
 @ApiBearerAuth('access-token')
 @Controller('clients')
@@ -190,5 +194,22 @@ export class ClientsController {
   })
   findOne(@Param('id') id: number) {
     return this.clientsService.findByID(id);
+  }
+
+  @Post('import-excel')
+  @UseInterceptors(FileInterceptor('file')) // 'file' será el nombre del campo en el FormData del frontend
+  async importExcel(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('No se ha proporcionado ningún archivo');
+    }
+
+    // Validar extensión (opcional pero recomendado)
+    if (!file.originalname.match(/\.(xlsx|xls|csv)$/)) {
+      throw new BadRequestException(
+        'El archivo debe ser un Excel válido (.xlsx, .xls, .csv)',
+      );
+    }
+
+    return await this.clientsService.importFromExcel(file.buffer);
   }
 }

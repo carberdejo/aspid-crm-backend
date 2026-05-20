@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -21,6 +22,9 @@ import {
 } from './exceptions/client.exceptions';
 import { User } from 'src/users/entities';
 import { PortfolioUser } from 'src/portfolios/entities/portfolio-user.entity';
+import * as xlsx from 'xlsx';
+import { Portfolio } from 'src/portfolios/entities/portfolio.entity';
+import { IndustrySegment } from 'src/catalogs/entities/industry-segment.entity';
 
 @Injectable()
 export class ClientsService {
@@ -32,6 +36,10 @@ export class ClientsService {
     private readonly contactClientRepository: Repository<ContactClient>,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
+    @InjectRepository(IndustrySegment)
+    private readonly segmentRepository: Repository<IndustrySegment>,
+    @InjectRepository(Portfolio)
+    private readonly portfolioRepository: Repository<Portfolio>,
   ) {}
 
   async create(createClientDto: CreateClientDto) {
@@ -319,5 +327,154 @@ export class ClientsService {
     return {
       data: { items: [], total: 0, limit: +limit, offset: +offset },
     };
+  }
+
+  //===============HELPERS================
+
+  async importFromExcel(fileBuffer: Buffer) {
+    try {
+      const getCellText = (value: unknown): string | undefined => {
+        if (typeof value === 'string') return value.trim();
+        if (typeof value === 'number' || typeof value === 'boolean') {
+          return String(value).trim();
+        }
+        return undefined;
+      };
+
+      // 1. Leer el Excel en Memoria
+      const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+
+      // SOLUCIÓN 1: Saltar las filas del logo.
+      // range: 2 significa que ignorará las filas 0 y 1 (las del logo) y usará la fila 2 (la 3 en Excel) como encabezados.
+      const rawData: Record<string, unknown>[] = xlsx.utils.sheet_to_json(
+        worksheet,
+        {
+          range: 2,
+          defval: null, // Si una celda está vacía, devuelve null en vez de ignorarla
+        },
+      );
+
+      if (rawData.length === 0) {
+        throw new BadRequestException(
+          'El archivo Excel no contiene datos válidos después del encabezado.',
+        );
+      }
+
+      // 2. Precarga de Datos Maestros
+      const segments = await this.segmentRepository.find();
+      const portfolios = await this.portfolioRepository.find();
+
+      const segmentMap = new Map<string, number>();
+      segments.forEach((s) =>
+        segmentMap.set(s.code.toUpperCase(), Number(s.id)),
+      );
+
+      const portfolioMap = new Map<string, number>();
+      portfolios.forEach((p) =>
+        portfolioMap.set(p.code.toUpperCase(), Number(p.id)),
+      );
+
+      const existingClients = await this.clientRepository.find({
+        select: ['ruc'],
+      });
+      const existingRucsSet = new Set(existingClients.map((c) => c.ruc));
+
+      // 3. Variables para el Reporte
+      const clientsToInsert: Partial<Client>[] = [];
+      const skippedDuplicates: string[] = [];
+      const errorsRow: { row: number; reason: string }[] = [];
+
+      // 4. Transformación de la Data
+      for (let i = 0; i < rawData.length; i++) {
+        const originalRow = rawData[i];
+
+        // SOLUCIÓN 2: Normalizar las llaves del Excel (Quitar espacios extra en "RUC " o "RAZON SOCIAL ")
+        const row: Record<string, unknown> = {};
+        for (const key in originalRow) {
+          row[key.trim().toUpperCase()] = originalRow[key];
+        }
+
+        // Ahora buscamos con total seguridad
+        const ruc = getCellText(row['RUC']);
+        const businessName = getCellText(row['RAZON SOCIAL']);
+
+        // Validación obligatoria
+        if (!ruc || !businessName) {
+          // +4 porque index 0 + 1, y nos saltamos 2 filas de logo = Fila real en Excel es i+4
+          errorsRow.push({ row: i + 4, reason: 'Falta RUC o Razón Social' });
+          continue;
+        }
+
+        // Validar duplicado en memoria
+        if (existingRucsSet.has(ruc)) {
+          skippedDuplicates.push(ruc);
+          continue;
+        }
+
+        // Búsqueda en los Hash Maps
+        const portfolioCode = getCellText(row['ACTUAL'])?.toUpperCase();
+        // Cubrimos por si en el Excel dice "SEGMENT", "SEGMENTO" o "SEGMENTO INDUSTRIAL"
+        const segmentCode = (
+          getCellText(row['SEGMENTO']) || getCellText(row['SEGMENT'])
+        )?.toUpperCase();
+
+        const clientObj: Partial<Client> = {
+          ruc: ruc,
+          businessName: businessName,
+          commercialName: businessName,
+          address: getCellText(row['DIRECCION']) || '',
+          province: getCellText(row['PROVINCIA']),
+          district: getCellText(row['DISTRITO FISCAL']),
+          zone: getCellText(row['ZONA']),
+
+          // Asignación de relaciones
+          portfolioId: portfolioCode
+            ? portfolioMap.get(portfolioCode)
+            : undefined,
+          segmentId: segmentCode ? segmentMap.get(segmentCode) : undefined,
+        };
+
+        clientsToInsert.push(clientObj);
+        existingRucsSet.add(ruc);
+      }
+
+      // 5. Inserción por Lotes
+      const chunkSize = 500;
+      let insertedCount = 0;
+
+      for (let i = 0; i < clientsToInsert.length; i += chunkSize) {
+        const chunk = clientsToInsert.slice(i, i + chunkSize);
+        // Usamos save en lugar de insert para que TypeORM maneje mejor los nulos si hay Default values
+        await this.clientRepository.save(chunk);
+        insertedCount += chunk.length;
+      }
+
+      // 6. Retornar el Reporte
+      return {
+        message: 'Proceso de importación finalizado',
+        stats: {
+          totalRowsProcessed: rawData.length,
+          successfullyInserted: insertedCount,
+          skippedDuplicatesCount: skippedDuplicates.length,
+          errorsCount: errorsRow.length,
+        },
+        details: {
+          skippedRucs: skippedDuplicates,
+          errors: errorsRow,
+        },
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(
+        `Error importando Excel: ${errorMessage}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new BadRequestException(
+        'Error al procesar el archivo Excel. Verifica el formato.',
+      );
+    }
   }
 }
