@@ -89,9 +89,9 @@ export class ClientsService {
     const queryBuilder = this.clientRepository
       .createQueryBuilder('client')
       .leftJoin('client.segment', 'segment')
-      .addSelect(['segment.id', 'segment.code'])
+      .addSelect(['segment.id', 'segment.code', 'segment.isActive'])
       .leftJoin('client.portfolio', 'portfolio')
-      .addSelect(['portfolio.id', 'portfolio.code']);
+      .addSelect(['portfolio.id', 'portfolio.code', 'portfolio.isActive']);
 
     // 1. Agregamos el COUNT como una subconsulta mapeada a la propiedad 'contacts'
     queryBuilder.loadRelationCountAndMap(
