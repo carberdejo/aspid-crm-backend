@@ -346,13 +346,11 @@ export class ClientsService {
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
 
-      // SOLUCIÓN 1: Saltar las filas del logo.
-      // range: 2 significa que ignorará las filas 0 y 1 (las del logo) y usará la fila 2 (la 3 en Excel) como encabezados.
       const rawData: Record<string, unknown>[] = xlsx.utils.sheet_to_json(
         worksheet,
         {
           range: 2,
-          defval: null, // Si una celda está vacía, devuelve null en vez de ignorarla
+          defval: null,
         },
       );
 
@@ -376,51 +374,66 @@ export class ClientsService {
         portfolioMap.set(p.code.toUpperCase(), Number(p.id)),
       );
 
+      // CAMBIO CLAVE: Traemos el ID además del RUC y creamos un Map
       const existingClients = await this.clientRepository.find({
-        select: ['ruc'],
+        select: ['id', 'ruc'],
       });
-      const existingRucsSet = new Set(existingClients.map((c) => c.ruc));
+      const existingClientMap = new Map<string, number>();
+      existingClients.forEach((c) =>
+        existingClientMap.set(c.ruc, Number(c.id)),
+      );
 
-      // 3. Variables para el Reporte
-      const clientsToInsert: Partial<Client>[] = [];
-      const skippedDuplicates: string[] = [];
+      // 3. Variables para el Reporte y Control
+      const clientsToSave: Partial<Client>[] = [];
+      const updatedRucs: string[] = [];
       const errorsRow: { row: number; reason: string }[] = [];
+
+      let insertedCount = 0;
+      let updatedCount = 0;
+
+      // Control para evitar duplicados dentro del MISMO Excel
+      const processedRucsInThisExcel = new Set<string>();
 
       // 4. Transformación de la Data
       for (let i = 0; i < rawData.length; i++) {
         const originalRow = rawData[i];
 
-        // SOLUCIÓN 2: Normalizar las llaves del Excel (Quitar espacios extra en "RUC " o "RAZON SOCIAL ")
         const row: Record<string, unknown> = {};
         for (const key in originalRow) {
           row[key.trim().toUpperCase()] = originalRow[key];
         }
 
-        // Ahora buscamos con total seguridad
         const ruc = getCellText(row['RUC']);
         const businessName = getCellText(row['RAZON SOCIAL']);
 
         // Validación obligatoria
         if (!ruc || !businessName) {
-          // +4 porque index 0 + 1, y nos saltamos 2 filas de logo = Fila real en Excel es i+4
           errorsRow.push({ row: i + 4, reason: 'Falta RUC o Razón Social' });
           continue;
         }
 
-        // Validar duplicado en memoria
-        if (existingRucsSet.has(ruc)) {
-          skippedDuplicates.push(ruc);
+        // Protección contra duplicados en el propio archivo Excel
+        if (processedRucsInThisExcel.has(ruc)) {
+          errorsRow.push({
+            row: i + 4,
+            reason: 'RUC duplicado dentro del mismo archivo Excel',
+          });
           continue;
         }
+        processedRucsInThisExcel.add(ruc);
 
         // Búsqueda en los Hash Maps
         const portfolioCode = getCellText(row['ACTUAL'])?.toUpperCase();
-        // Cubrimos por si en el Excel dice "SEGMENT", "SEGMENTO" o "SEGMENTO INDUSTRIAL"
         const segmentCode = (
           getCellText(row['SEGMENTO']) || getCellText(row['SEGMENT'])
         )?.toUpperCase();
 
+        // CAMBIO CLAVE: Verificamos si ya existe en BD para hacer Upsert
+        const existingId = existingClientMap.get(ruc);
+
         const clientObj: Partial<Client> = {
+          // Si el ID existe, se lo pasamos. TypeORM hará un UPDATE automático.
+          ...(existingId && { id: existingId }),
           ruc: ruc,
           businessName: businessName,
           commercialName: businessName,
@@ -428,40 +441,64 @@ export class ClientsService {
           province: getCellText(row['PROVINCIA']),
           district: getCellText(row['DISTRITO FISCAL']),
           zone: getCellText(row['ZONA']),
-
-          // Asignación de relaciones
           portfolioId: portfolioCode
             ? portfolioMap.get(portfolioCode)
             : undefined,
           segmentId: segmentCode ? segmentMap.get(segmentCode) : undefined,
         };
 
-        clientsToInsert.push(clientObj);
-        existingRucsSet.add(ruc);
+        // Contadores para el frontend
+        if (existingId) {
+          updatedCount++;
+          updatedRucs.push(ruc);
+        } else {
+          insertedCount++;
+        }
+
+        clientsToSave.push(clientObj);
       }
 
-      // 5. Inserción por Lotes
+      // 5. Inserción / Actualización por Lotes (Upsert)
       const chunkSize = 500;
-      let insertedCount = 0;
 
-      for (let i = 0; i < clientsToInsert.length; i += chunkSize) {
-        const chunk = clientsToInsert.slice(i, i + chunkSize);
-        // Usamos save en lugar de insert para que TypeORM maneje mejor los nulos si hay Default values
-        await this.clientRepository.save(chunk);
-        insertedCount += chunk.length;
+      for (let i = 0; i < clientsToSave.length; i += chunkSize) {
+        const chunk = clientsToSave.slice(i, i + chunkSize);
+        // .save() inserta los que no tienen ID y actualiza los que sí tienen ID
+        // await this.clientRepository.save(chunk);
+        await this.clientRepository
+          .createQueryBuilder()
+          .insert()
+          .into(Client)
+          .values(chunk)
+          .orUpdate(
+            // Lista de columnas que se van a actualizar si el RUC ya existe
+            [
+              'commercial_name',
+              'business_name',
+              'address',
+              'province',
+              'district',
+              'zone',
+              'portfolio_id',
+              'segment_id',
+            ],
+            // La columna que tiene la restricción UNIQUE
+            ['ruc'],
+          )
+          .execute();
       }
 
-      // 6. Retornar el Reporte
+      // 6. Retornar el Reporte modificado para el Upsert
       return {
-        message: 'Proceso de importación finalizado',
+        message: 'Proceso de importación y sincronización finalizado',
         stats: {
           totalRowsProcessed: rawData.length,
           successfullyInserted: insertedCount,
-          skippedDuplicatesCount: skippedDuplicates.length,
+          successfullyUpdated: updatedCount,
           errorsCount: errorsRow.length,
         },
         details: {
-          skippedRucs: skippedDuplicates,
+          updatedRucs: updatedRucs,
           errors: errorsRow,
         },
       };
@@ -475,6 +512,56 @@ export class ClientsService {
       throw new BadRequestException(
         'Error al procesar el archivo Excel. Verifica el formato.',
       );
+    }
+  }
+
+  async exportToExcel(term?: string): Promise<Buffer> {
+    try {
+      // 1. Usamos QueryBuilder para aplicar los mismos filtros que en el GET /clients
+      const query = this.clientRepository
+        .createQueryBuilder('client')
+        .leftJoinAndSelect('client.segment', 'segment')
+        .leftJoinAndSelect('client.portfolio', 'portfolio')
+        .orderBy('client.id', 'ASC');
+
+      // Si el frontend envía un término de búsqueda, filtramos
+      if (term) {
+        query.andWhere(
+          '(client.commercialName ILIKE :term OR client.businessName ILIKE :term OR client.ruc ILIKE :term)',
+          { term: `%${term}%` },
+        );
+      }
+
+      // getMany() trae todos los resultados que coincidan (sin paginación)
+      const clients = await query.getMany();
+
+      // 2. Mapeo exacto para la Plantilla Excel
+      const dataToExport = clients.map((client, index) => ({
+        ITEM: index + 1,
+        ANTERIO: 'N/C',
+        ACTUAL: client.portfolio?.code || '',
+        SEGMENTO: client.segment?.code || '',
+        'RAZON SOCIAL': client.businessName,
+        RUC: client.ruc,
+        'SECTOR P': '',
+        DIRECCION: client.address,
+        PROVINCIA: client.province || '',
+        'DISTRITO FISCAL': client.district || '',
+        ZONA: client.zone || '',
+      }));
+
+      // 3. Crear el Excel
+      const worksheet = xlsx.utils.json_to_sheet(dataToExport);
+      const workbook = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'CARTERA');
+
+      return xlsx.write(workbook, {
+        bookType: 'xlsx',
+        type: 'buffer',
+      }) as Buffer;
+    } catch (error) {
+      this.logger.error('Error exportando clientes a Excel', error);
+      throw new BadRequestException('No se pudo generar el archivo Excel');
     }
   }
 }

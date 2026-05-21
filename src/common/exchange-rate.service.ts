@@ -3,22 +3,22 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { Cron, CronExpression } from '@nestjs/schedule'; // Importar el decorador
 import { ExchangeRateInterface } from './interfaces/exchange-rate.interfaces';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class ExchangeRateService implements OnModuleInit {
   private readonly logger = new Logger(ExchangeRateService.name);
   private readonly CACHE_KEY = 'TODAY_EXCHANGE_RATES';
   // Reemplaza esto con tu API Key real de ExchangeRate-API cuando la crees
-  private readonly API_URL =
-    'https://v6.exchangerate-api.com/v6/1442d4a05144b6a23cde0452/latest/USD';
 
-  constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
+  constructor(
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private configService: ConfigService,
+  ) {}
 
   // Interfaz de NestJS: Se ejecuta automáticamente apenas levanta el servidor
   async onModuleInit() {
-    this.logger.log(
-      'Inicializando tasas de cambio al arrancar la aplicación...',
-    );
+    this.logger.log('Inicializando tasas de cambio...');
     await this.updateRatesDaily();
   }
 
@@ -30,8 +30,30 @@ export class ExchangeRateService implements OnModuleInit {
         'Ejecutando Cron: Actualizando tasas desde ExchangeRate-API...',
       );
 
-      // Hacemos la petición HTTP nativa a la API externa
-      const response = await fetch(this.API_URL);
+      const isDevelopment = process.env.NODE_ENV !== 'production';
+
+      if (isDevelopment) {
+        this.logger.log(
+          '🛠️ Entorno DEV detectado. Usando Mock de tasas de cambio (Sin consumo de API).',
+        );
+
+        const mockRates = {
+          USD: 1,
+          PEN: 3.41, // Puedes poner números cerrados aquí para que probar cálculos sea más fácil
+          MXN: 17.0,
+          CLP: 950.0,
+        };
+
+        await this.cacheManager.set(this.CACHE_KEY, mockRates);
+        return mockRates;
+      }
+
+      this.logger.log(
+        'Entorno PROD. Actualizando tasas desde ExchangeRate-API...',
+      );
+      const apiKey = this.configService.get<string>('exchangeRate.apiKey');
+      const apiUrl = `https://v6.exchangerate-api.com/v6/${apiKey}/latest/USD`;
+      const response = await fetch(apiUrl);
 
       if (!response.ok) {
         throw new Error(`Error en la API externa: ${response.statusText}`);
@@ -50,8 +72,6 @@ export class ExchangeRateService implements OnModuleInit {
 
       // Guardamos el objeto limpio en nuestra caché en RAM
       await this.cacheManager.set(this.CACHE_KEY, rates);
-
-      this.logger.log('Caché de tasas de cambio actualizada con éxito.');
       return rates;
     } catch (error) {
       this.logger.error(

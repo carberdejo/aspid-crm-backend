@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Res,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -28,7 +29,7 @@ import { Auth, CurrentUser } from 'src/auth/decorators';
 import { Role } from 'src/users/interfaces';
 import { User } from 'src/users/entities';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Express } from 'express';
+import { Express, type Response } from 'express';
 @ApiTags('clients')
 @ApiBearerAuth('access-token')
 @Controller('clients')
@@ -211,5 +212,25 @@ export class ClientsController {
     }
 
     return await this.clientsService.importFromExcel(file.buffer);
+  }
+
+  @Get('export-excel')
+  async exportExcel(@Res() res: Response, @Query('term') term?: string) {
+    try {
+      // Le pasamos el término de búsqueda al servicio
+      const buffer = await this.clientsService.exportToExcel(term);
+
+      res.set({
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition':
+          'attachment; filename=Maestra_Clientes_ACME.xlsx',
+        'Content-Length': buffer.length.toString(), // Importante convertir a string en Express
+      });
+
+      res.end(buffer);
+    } catch {
+      throw new BadRequestException('Error al exportar los datos');
+    }
   }
 }
