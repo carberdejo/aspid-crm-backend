@@ -6,12 +6,14 @@ import { Repository } from 'typeorm';
 import { QuoteMetricsQueryDto } from './dto/quote-metrics-query.dto';
 import { VisitMetricsQueryDto } from './dto/visit-metrics-query.dto';
 import { Visit } from 'src/visits/entities/visit.entity';
+import { ExchangeRateService } from 'src/common/exchange-rate.service';
 
 interface QuoteMetricsRaw {
   total: string;
   pending: string;
   approved: string;
   totalAmount: string;
+  currency?: string;
 }
 
 @Injectable()
@@ -21,26 +23,33 @@ export class AnalyticsService {
     private readonly quoteRepository: Repository<Quote>,
     @InjectRepository(Visit)
     private readonly visitRepository: Repository<Visit>,
+    private readonly exchangeRateService: ExchangeRateService,
   ) {}
 
   async getQuoteStats({ userId, startDate, endDate }: QuoteMetricsQueryDto) {
+    // 1. Obtenemos las tasas de HOY desde tu caché en 0 ms
+    const todayRates = await this.exchangeRateService.getRates();
+
     const queryBuilder = this.quoteRepository.createQueryBuilder('quote');
 
-    // Filtro por usuario si se proporciona
     if (userId) {
-      queryBuilder.andWhere('quote.userId = :userId', { userId });
+      queryBuilder.andWhere('quote.user_id = :userId', { userId }); // Cuidado con el snake_case de tu BD
     }
 
-    // Filtro por rango de fechas
     if (startDate && endDate) {
-      queryBuilder.andWhere('quote.createdAt BETWEEN :startDate AND :endDate', {
-        startDate,
-        endDate,
-      });
+      queryBuilder.andWhere(
+        'quote.created_at BETWEEN :startDate AND :endDate',
+        {
+          startDate,
+          endDate,
+        },
+      );
     }
 
-    const metrics = await queryBuilder
-      .select('COUNT(*)', 'total')
+    // 2. Agrupamos por moneda
+    const metricsByCurrency = await queryBuilder
+      .select('quote.currency', 'currency')
+      .addSelect('COUNT(*)', 'total')
       .addSelect(
         `COUNT(*) FILTER (WHERE quote.status = '${QuoteStatus.PENDIENTE}')`,
         'pending',
@@ -50,13 +59,39 @@ export class AnalyticsService {
         'approved',
       )
       .addSelect('SUM(quote.amount)', 'totalAmount')
-      .getRawOne<QuoteMetricsRaw>();
+      .groupBy('quote.currency')
+      .getRawMany<QuoteMetricsRaw>();
+
+    // 3. Consolidamos todo a Dólares
+    let finalTotalAmountUSD = 0;
+    let total = 0,
+      pending = 0,
+      approved = 0;
+
+    metricsByCurrency.forEach((metric: QuoteMetricsRaw) => {
+      const currency = metric.currency || 'USD';
+      const amountInCurrency = parseFloat(metric.totalAmount || '0');
+      const rate = todayRates[currency] || 1;
+
+      if (currency === 'USD') {
+        finalTotalAmountUSD += amountInCurrency;
+      } else {
+        finalTotalAmountUSD += amountInCurrency / rate;
+        console.log('monto antes: ', amountInCurrency);
+        console.log('tasa: ', rate);
+        console.log('monto convertido a USD: ', amountInCurrency / rate);
+      }
+
+      total += parseInt(metric.total || '0', 10);
+      pending += parseInt(metric.pending || '0', 10);
+      approved += parseInt(metric.approved || '0', 10);
+    });
 
     return {
-      total: parseInt(metrics?.total || '0', 10),
-      pending: parseInt(metrics?.pending || '0', 10),
-      approved: parseInt(metrics?.approved || '0', 10),
-      totalAmount: parseFloat(metrics?.totalAmount || '0'),
+      total,
+      pending,
+      approved,
+      totalAmount: parseFloat(finalTotalAmountUSD.toFixed(2)),
     };
   }
 

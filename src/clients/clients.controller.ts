@@ -8,6 +8,11 @@ import {
   Query,
   ParseIntPipe,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+  Res,
+  HttpCode,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -21,9 +26,11 @@ import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { QueryClientDto } from './dto/query-client.dto';
 import { CreateContactClientDto } from './dto';
-import { Auth } from 'src/auth/decorators';
+import { Auth, CurrentUser } from 'src/auth/decorators';
 import { Role } from 'src/users/interfaces';
-
+import { User } from 'src/users/entities';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Express, type Response } from 'express';
 @ApiTags('clients')
 @ApiBearerAuth('access-token')
 @Controller('clients')
@@ -59,8 +66,8 @@ export class ClientsController {
   @ApiForbiddenResponse({
     description: 'No tienes permisos para realizar esta acción',
   })
-  findAll(@Query() query: QueryClientDto) {
-    return this.clientsService.findAll(query);
+  findAll(@Query() query: QueryClientDto, @CurrentUser() user: User) {
+    return this.clientsService.findAll(query, user);
   }
 
   @Get('sunat/:ruc')
@@ -189,5 +196,43 @@ export class ClientsController {
   })
   findOne(@Param('id') id: number) {
     return this.clientsService.findByID(id);
+  }
+
+  @Post('import-excel')
+  @UseInterceptors(FileInterceptor('file')) // 'file' será el nombre del campo en el FormData del frontend
+  async importExcel(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('No se ha proporcionado ningún archivo');
+    }
+
+    // Validar extensión (opcional pero recomendado)
+    if (!file.originalname.match(/\.(xlsx|xls|csv)$/)) {
+      throw new BadRequestException(
+        'El archivo debe ser un Excel válido (.xlsx, .xls, .csv)',
+      );
+    }
+
+    return await this.clientsService.importFromExcel(file.buffer);
+  }
+
+  @Post('export-excel')
+  @HttpCode(HttpStatus.OK)
+  async exportExcel(@Res() res: Response, @Body() filters: QueryClientDto) {
+    try {
+      // Le pasamos el término de búsqueda al servicio
+      const buffer = await this.clientsService.exportToExcel(filters);
+
+      res.set({
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition':
+          'attachment; filename=Maestra_Clientes_ACME.xlsx',
+        'Content-Length': buffer.length.toString(), // Importante convertir a string en Express
+      });
+
+      res.end(buffer);
+    } catch {
+      throw new BadRequestException('Error al exportar los datos');
+    }
   }
 }

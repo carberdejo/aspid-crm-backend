@@ -32,6 +32,11 @@ export const ValidationSchema = Joi.object({
     .required()
     .description('Token de acceso para la API de SUNAT'),
 
+  // Exchange Rate API Key
+  EXCHANGE_RATE_API_KEY: Joi.string()
+    .required()
+    .description('API Key para acceder a ExchangeRate-API'),
+
   // Frontend Host
   FRONTEND_HOST: Joi.string()
     .uri()

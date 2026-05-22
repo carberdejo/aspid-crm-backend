@@ -14,6 +14,7 @@ import {
   QuoteInvalidStatusTransitionException,
   QuoteNotFoundException,
 } from './exceptions/quote.exceptions';
+import { ExchangeRateService } from 'src/common/exchange-rate.service';
 
 @Injectable()
 export class QuotesService {
@@ -22,6 +23,7 @@ export class QuotesService {
     @InjectRepository(Quote)
     private readonly quoteRepository: Repository<Quote>,
     private readonly commonValidationService: CommonValidationService,
+    private readonly exchangeRateService: ExchangeRateService,
   ) {}
   async create(createQuoteDto: CreateQuoteDto) {
     this.logger.log('Creating new quote...');
@@ -101,7 +103,8 @@ export class QuotesService {
           qb.where('quote.quoteNumber ILIKE :term', { term: `%${term}%` })
             .orWhere('client.commercialName ILIKE :term', { term: `%${term}%` })
             .orWhere('contact.firstName ILIKE :term', { term: `%${term}%` })
-            .orWhere('contact.lastName ILIKE :term', { term: `%${term}%` });
+            .orWhere('contact.lastName ILIKE :term', { term: `%${term}%` })
+            .orWhere('quote.description ILIKE :term', { term: `%${term}%` });
         }),
       );
     }
@@ -132,6 +135,36 @@ export class QuotesService {
     if (endDate)
       queryBuilder.andWhere('quote.createdAt <= :endDate', { endDate });
 
+    const sumQueryBuilder = queryBuilder.clone();
+
+    if (!status) {
+      sumQueryBuilder.andWhere('quote.status != :rejectedStatus', {
+        rejectedStatus: QuoteStatus.RECHAZADO, // Asegúrate de usar el valor exacto de tu enum
+      });
+    }
+
+    const totalsByCurrency = await sumQueryBuilder
+      .select('quote.currency', 'currency')
+      .addSelect('SUM(quote.amount)', 'sum')
+      .groupBy('quote.currency')
+      .getRawMany();
+
+    // Cargamos tus tasas de cambio en 0 milisegundos desde la caché in-memory que creamos
+    const todayRates = await this.exchangeRateService.getRates();
+    let totalAmountUSD = 0;
+
+    totalsByCurrency.forEach((bucket: { currency: string; sum: string }) => {
+      const currency = bucket.currency || 'USD';
+      const sumAmount = parseFloat(bucket.sum || '0');
+      const rate = todayRates[currency] || 1;
+
+      if (currency === 'USD') {
+        totalAmountUSD += sumAmount;
+      } else {
+        totalAmountUSD += sumAmount / rate;
+      }
+    });
+
     // Ordenar por fecha de creación descendente
     const [quotes, total] = await queryBuilder
       .orderBy('quote.createdAt', 'DESC')
@@ -145,6 +178,7 @@ export class QuotesService {
         total,
         limit,
         offset,
+        totalAmountUSD: parseFloat(totalAmountUSD.toFixed(2)),
       },
     };
   }

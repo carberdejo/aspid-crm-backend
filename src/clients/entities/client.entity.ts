@@ -6,8 +6,12 @@ import {
   CreateDateColumn,
   OneToMany,
   Index,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { ContactClient } from './contact-client.entity';
+import { IndustrySegment } from 'src/catalogs/entities/industry-segment.entity';
+import { Portfolio } from 'src/portfolios/entities/portfolio.entity';
 
 @Entity({ name: 'client' })
 export class Client {
@@ -40,10 +44,42 @@ export class Client {
   })
   createdAt: Date;
 
+  @ApiProperty({ example: 'San Isidro', description: 'Distrito del cliente' })
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  district: string;
+
+  @ApiProperty({ example: 'Lima', description: 'Provincia del cliente' })
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  province: string;
+
+  @ApiProperty({ example: 'Este', description: 'Zona del cliente' })
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  zone: string;
+
+  @ApiProperty({ example: 1, description: 'ID del segmento industrial' })
+  @Column({ name: 'segment_id', type: 'bigint', nullable: true })
+  segmentId: number;
+
+  @ApiProperty({
+    example: 1,
+    description: 'ID de la cartera a la que pertenece el cliente',
+  })
+  @Column({ type: 'bigint', name: 'portfolio_id', nullable: true })
+  portfolioId: number;
+
   @ApiProperty({
     type: () => [ContactClient],
     description: 'Lista de contactos asociados',
   })
   @OneToMany(() => ContactClient, (contact) => contact.client)
   contacts: ContactClient[];
+
+  // Aquí podrías agregar la relación con IndustrySegment si es necesario
+  @ManyToOne(() => IndustrySegment)
+  @JoinColumn({ name: 'segment_id' })
+  segment: IndustrySegment;
+
+  @ManyToOne(() => Portfolio)
+  @JoinColumn({ name: 'portfolio_id' })
+  portfolio: Portfolio;
 }

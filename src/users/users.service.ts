@@ -66,12 +66,12 @@ export class UsersService {
 
   async findAll(queryUserDto: QueryUserDto) {
     const { limit = 10, offset = 0, term, departmentId } = queryUserDto;
-    console.log('--- DEBUG FILTROS ---');
-    console.log('Valor crudo de isActive:', queryUserDto.isActive);
-    console.log('Tipo de dato de isActive:', typeof queryUserDto.isActive);
+    // console.log('--- DEBUG FILTROS ---');
+    // console.log('Valor crudo de isActive:', queryUserDto.isActive);
+    // console.log('Tipo de dato de isActive:', typeof queryUserDto.isActive);
     const isActive = this.normalizeBoolean(queryUserDto.isActive);
 
-    console.log({ term, departmentId, isActive });
+    // console.log({ term, departmentId, isActive });
     const queryBuilder = this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.userDepartments', 'userDept')
@@ -100,9 +100,9 @@ export class UsersService {
       .take(limit)
       .getManyAndCount();
 
-    this.logger.log(
-      `Cantidad de usuarios encontrados: ${users.length} de ${total} total`,
-    );
+    // this.logger.log(
+    //   `Cantidad de usuarios encontrados: ${users.length} de ${total} total`,
+    // );
 
     return {
       data: {

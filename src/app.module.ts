@@ -15,6 +15,10 @@ import { QuotesModule } from './quotes/quotes.module';
 import { OrdersModule } from './orders/orders.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { InvoicesModule } from './invoices/invoices.module';
+import { PortfoliosModule } from './portfolios/portfolios.module';
+import { CatalogsModule } from './catalogs/catalogs.module';
+import { CacheModule } from '@nestjs/cache-manager';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -50,6 +54,12 @@ import { InvoicesModule } from './invoices/invoices.module';
         // logging: ['query', 'error'], // Habilitar el logging de consultas y errores para facilitar la depuración y el monitoreo de la base de datos
       }),
     }),
+    ScheduleModule.forRoot(),
+    CacheModule.register({
+      isGlobal: true, // Hacer que el módulo de caché sea global para que esté disponible en toda la aplicación sin necesidad de importarlo en cada módulo
+      ttl: 86400000, // Tiempo de vida por defecto: 24 horas (en milisegundos)
+      // max: 100, // Número máximo de elementos que se pueden almacenar en caché
+    }),
     CommonModule,
     UsersModule,
     DepartmentsModule,
@@ -60,6 +70,8 @@ import { InvoicesModule } from './invoices/invoices.module';
     OrdersModule,
     AnalyticsModule,
     InvoicesModule,
+    PortfoliosModule,
+    CatalogsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

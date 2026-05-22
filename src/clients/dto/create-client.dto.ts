@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateClientDto {
   @ApiProperty({
@@ -43,4 +49,52 @@ export class CreateClientDto {
   @IsNotEmpty({ message: 'La dirección es obligatoria' })
   @MaxLength(255)
   address: string;
+
+  @ApiProperty({
+    description: 'Segmento industrial al que pertenece la empresa',
+    example: 1,
+  })
+  @IsNumber()
+  @IsNotEmpty({ message: 'El segmento industrial es obligatorio' })
+  segmentId: number; // Nueva Llave Foránea
+
+  @ApiProperty({
+    description: 'Cartera a la que pertenece el cliente',
+    example: 1,
+  })
+  @IsNumber()
+  @IsNotEmpty({
+    message: 'La cartera es obligatoria para el control de accesos',
+  })
+  portfolioId: number; // Nueva Llave Foránea
+
+  @ApiProperty({
+    description: 'Distrito donde se encuentra la empresa',
+    example: 'San Isidro',
+    maxLength: 100,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'El distrito es obligatorio' })
+  @MaxLength(100)
+  district: string; // Campo adicional para almacenar el distrito del cliente
+
+  @ApiProperty({
+    description: 'Provincia donde se encuentra la empresa',
+    example: 'Lima',
+    maxLength: 100,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'La provincia es obligatoria' })
+  @MaxLength(100)
+  province: string; // Campo adicional para almacenar la provincia del cliente
+
+  @ApiProperty({
+    description: 'Zona donde se encuentra la empresa',
+    example: 'Norte',
+    maxLength: 100,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'La zona es obligatoria' })
+  @MaxLength(100)
+  zone: string; // Campo adicional para almacenar el departamento del cliente
 }

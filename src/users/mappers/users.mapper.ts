@@ -8,6 +8,7 @@ import {
 export class UserMapper {
   static toListResponse(user: User): UserListResponseDto {
     return {
+      id: user.id,
       codUser: user.codUser,
       firstName: user.firstName,
       lastName: user.lastName,

@@ -10,6 +10,7 @@ import { User } from 'src/users/entities';
 import { Client, ContactClient } from 'src/clients/entities';
 import { Department } from 'src/departments/entities/department.entity';
 import { Visit } from 'src/visits/entities/visit.entity';
+import { ExchangeRateService } from './exchange-rate.service';
 
 @Module({
   imports: [
@@ -28,12 +29,14 @@ import { Visit } from 'src/visits/entities/visit.entity';
     HttpExceptionFilter,
     AppLoggerService,
     CommonValidationService,
+    ExchangeRateService,
   ],
   exports: [
     TransformResponseInterceptor,
     HttpExceptionFilter,
     AppLoggerService,
     CommonValidationService,
+    ExchangeRateService,
   ],
 })
 export class CommonModule {}

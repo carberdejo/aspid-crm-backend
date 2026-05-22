@@ -23,6 +23,11 @@ export const databaseConfig = () => ({
   sunat: {
     token: process.env.SUNAT_TOKEN || 'default_sunat_token',
   },
+  exchangeRate: {
+    apiKey:
+      process.env.EXCHANGE_RATE_API_KEY || 'default_exchange_rate_api_key',
+  },
+
   frontend: {
     host: process.env.FRONTEND_HOST || 'http://localhost:3000',
   },
