@@ -125,7 +125,7 @@ export class ClientsService {
       }
     }
 
-    // FILTERS
+    // query
     if (term) {
       queryBuilder.andWhere(
         new Brackets((qb) => {
@@ -515,7 +515,7 @@ export class ClientsService {
     }
   }
 
-  async exportToExcel(term?: string): Promise<Buffer> {
+  async exportToExcel(filter: QueryClientDto): Promise<Buffer> {
     try {
       // 1. Usamos QueryBuilder para aplicar los mismos filtros que en el GET /clients
       const query = this.clientRepository
@@ -525,11 +525,23 @@ export class ClientsService {
         .orderBy('client.id', 'ASC');
 
       // Si el frontend envía un término de búsqueda, filtramos
-      if (term) {
+      if (filter.term) {
         query.andWhere(
           '(client.commercialName ILIKE :term OR client.businessName ILIKE :term OR client.ruc ILIKE :term)',
-          { term: `%${term}%` },
+          { term: `%${filter.term}%` },
         );
+      }
+
+      if (filter.segmentId) {
+        query.andWhere('client.segmentId = :segmentId', {
+          segmentId: filter.segmentId,
+        });
+      }
+
+      if (filter.portfolioId) {
+        query.andWhere('client.portfolioId = :portfolioId', {
+          portfolioId: filter.portfolioId,
+        });
       }
 
       // getMany() trae todos los resultados que coincidan (sin paginación)

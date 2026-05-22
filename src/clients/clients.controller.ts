@@ -12,6 +12,7 @@ import {
   UploadedFile,
   BadRequestException,
   Res,
+  HttpCode,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -214,11 +215,12 @@ export class ClientsController {
     return await this.clientsService.importFromExcel(file.buffer);
   }
 
-  @Get('export-excel')
-  async exportExcel(@Res() res: Response, @Query('term') term?: string) {
+  @Post('export-excel')
+  @HttpCode(HttpStatus.OK)
+  async exportExcel(@Res() res: Response, @Body() filters: QueryClientDto) {
     try {
       // Le pasamos el término de búsqueda al servicio
-      const buffer = await this.clientsService.exportToExcel(term);
+      const buffer = await this.clientsService.exportToExcel(filters);
 
       res.set({
         'Content-Type':
