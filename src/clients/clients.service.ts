@@ -25,7 +25,7 @@ import { PortfolioUser } from 'src/portfolios/entities/portfolio-user.entity';
 import * as xlsx from 'xlsx';
 import { Portfolio } from 'src/portfolios/entities/portfolio.entity';
 import { IndustrySegment } from 'src/catalogs/entities/industry-segment.entity';
-
+import * as xlsxStyle from 'xlsx-js-style';
 @Injectable()
 export class ClientsService {
   protected readonly logger = new Logger(ClientsService.name);
@@ -515,7 +515,7 @@ export class ClientsService {
     }
   }
 
-  async exportToExcel(filter: QueryClientDto): Promise<Buffer> {
+  async exportToExcel2(filter: QueryClientDto): Promise<Buffer> {
     try {
       // 1. Usamos QueryBuilder para aplicar los mismos filtros que en el GET /clients
       const query = this.clientRepository
@@ -574,6 +574,145 @@ export class ClientsService {
     } catch (error) {
       this.logger.error('Error exportando clientes a Excel', error);
       throw new BadRequestException('No se pudo generar el archivo Excel');
+    }
+  }
+
+  async exportToExcel(filters: QueryClientDto): Promise<Buffer> {
+    try {
+      const applyCellStyle = (
+        cell: xlsxStyle.CellObject | undefined,
+        style: Record<string, unknown>,
+      ) => {
+        if (cell) {
+          cell.s = style;
+        }
+      };
+
+      const query = this.clientRepository
+        .createQueryBuilder('client')
+        .leftJoinAndSelect('client.segment', 'segment')
+        .leftJoinAndSelect('client.portfolio', 'portfolio')
+        .orderBy('client.id', 'ASC');
+
+      // Aplicación de filtros de tu DTO
+      if (filters.term) {
+        query.andWhere(
+          '(client.commercialName ILIKE :term OR client.businessName ILIKE :term OR client.ruc ILIKE :term)',
+          { term: `%${filters.term}%` },
+        );
+      }
+      if (filters.segmentId) {
+        query.andWhere('client.segmentId = :segmentId', {
+          segmentId: filters.segmentId,
+        });
+      }
+      if (filters.portfolioId) {
+        query.andWhere('client.portfolioId = :portfolioId', {
+          portfolioId: filters.portfolioId,
+        });
+      }
+
+      const clients = await query.getMany();
+
+      // 1. Crear el libro y una hoja vacía
+      const workbook = xlsxStyle.utils.book_new();
+      const worksheet = xlsxStyle.utils.json_to_sheet([]); // Iniciamos vacío para controlar las filas
+
+      // 2. Insertar Fila 1: Logo/Texto institucional tal como viene en tu plantilla de importación
+      xlsxStyle.utils.sheet_add_aoa(worksheet, [['ACME & CIA', 'CARTERA']], {
+        origin: 'A1',
+      });
+
+      // Estilo para la celda "ACME & CIA" de la esquina
+      applyCellStyle(worksheet['A1'] as xlsxStyle.CellObject | undefined, {
+        font: { bold: true, color: { rgb: 'E28743' }, size: 12 },
+      });
+      applyCellStyle(worksheet['B1'] as xlsxStyle.CellObject | undefined, {
+        font: { bold: true, color: { rgb: 'FFFFFF' } },
+        fill: { fgColor: { rgb: 'E28743' } },
+      });
+
+      // 3. Preparar los Encabezados de la Fila 3 con sus Estilos de Color (Naranja Corporativo)
+      const headers = [
+        'ITEM',
+        'ANTERIO',
+        'ACTUAL',
+        'SEGMENTO',
+        'RAZON SOCIAL',
+        'RUC',
+        'SECTOR P',
+        'DIRECCION',
+        'PROVINCIA',
+        'DISTRITO FISCAL',
+        'ZONA',
+      ];
+
+      // Agregamos la fila de encabezados en A3
+      xlsxStyle.utils.sheet_add_aoa(worksheet, [headers], { origin: 'A3' });
+
+      // Aplicamos color naranja de fondo y texto blanco a cada celda de la Fila 3
+      const cols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'];
+      cols.forEach((col) => {
+        const cellRef = `${col}3`;
+        const cell = worksheet[cellRef] as xlsxStyle.CellObject | undefined;
+
+        applyCellStyle(cell, {
+          fill: { fgColor: { rgb: 'F2A134' } }, // Color naranja de tu segunda imagen
+          font: { bold: true, color: { rgb: 'FFFFFF' }, size: 10 },
+          alignment: { horizontal: 'center', vertical: 'center' },
+          border: {
+            top: { style: 'thin', color: { rgb: 'D3D3D3' } },
+            bottom: { style: 'thin', color: { rgb: 'D3D3D3' } },
+          },
+        });
+      });
+
+      // 4. Mapear y Agregar los Datos Comerciales a partir de la Fila 4 (A4)
+      const rowsData = clients.map((client, index) => [
+        index + 1,
+        'N/C',
+        client.portfolio?.code || '',
+        client.segment?.code || '',
+        client.businessName,
+        client.ruc,
+        '',
+        client.address,
+        client.province || '',
+        client.district || '',
+        client.zone || '',
+      ]);
+
+      // Insertamos los registros abajo de la cabecera. skipHeader: true evita que inserte llaves automáticas
+      xlsxStyle.utils.sheet_add_aoa(worksheet, rowsData, { origin: 'A4' });
+
+      // 5. Autoajustar el ancho de las columnas para que no se corte el texto
+      worksheet['!cols'] = [
+        { wch: 6 }, // ITEM
+        { wch: 10 }, // ANTERIO
+        { wch: 10 }, // ACTUAL
+        { wch: 12 }, // SEGMENTO
+        { wch: 45 }, // RAZON SOCIAL
+        { wch: 15 }, // RUC
+        { wch: 10 }, // SECTOR P
+        { wch: 40 }, // DIRECCION
+        { wch: 15 }, // PROVINCIA
+        { wch: 20 }, // DISTRITO FISCAL
+        { wch: 12 }, // ZONA
+      ];
+
+      xlsxStyle.utils.book_append_sheet(workbook, worksheet, 'CARTERA');
+
+      const excelBuffer = xlsxStyle.write(workbook, {
+        bookType: 'xlsx',
+        type: 'buffer',
+      }) as Buffer;
+
+      return excelBuffer;
+    } catch (error) {
+      this.logger.error('Error exportando clientes a Excel', error);
+      throw new BadRequestException(
+        'No se pudo generar el archivo Excel estructurado',
+      );
     }
   }
 }

@@ -103,7 +103,8 @@ export class QuotesService {
           qb.where('quote.quoteNumber ILIKE :term', { term: `%${term}%` })
             .orWhere('client.commercialName ILIKE :term', { term: `%${term}%` })
             .orWhere('contact.firstName ILIKE :term', { term: `%${term}%` })
-            .orWhere('contact.lastName ILIKE :term', { term: `%${term}%` });
+            .orWhere('contact.lastName ILIKE :term', { term: `%${term}%` })
+            .orWhere('quote.description ILIKE :term', { term: `%${term}%` });
         }),
       );
     }
