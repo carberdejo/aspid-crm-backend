@@ -30,7 +30,8 @@ export class IndustrySegmentsService {
     }
 
     const newSegment = this.segmentRepo.create(createDto);
-    return this.segmentRepo.save(newSegment);
+    await this.segmentRepo.save(newSegment);
+    return { message: `Segmento ${createDto.name} creado exitosamente` };
   }
 
   async findAll(query: QueryIndustrySegmentDto) {
@@ -63,7 +64,8 @@ export class IndustrySegmentsService {
     if (!segment) throw new NotFoundException('Segmento no encontrado');
 
     Object.assign(segment, updateDto);
-    return this.segmentRepo.save(segment);
+    await this.segmentRepo.save(segment);
+    return { message: `Segmento ${segment.name} actualizado exitosamente` };
   }
 
   // SOFT DELETE (Desactivar) - No borra el registro

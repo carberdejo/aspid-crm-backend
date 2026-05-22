@@ -35,7 +35,8 @@ export class PortfoliosService {
     const newPortfolio = this.portfolioRepo.create(createDto);
 
     // Guarda cabecera y detalle en una sola transacción atómica
-    return this.portfolioRepo.save(newPortfolio);
+    await this.portfolioRepo.save(newPortfolio);
+    return { message: `Cartera ${createDto.code} creada exitosamente` };
   }
 
   // FIND ALL UNIFICADO CON BÚSQUEDA Y PAGINACIÓN
@@ -150,7 +151,8 @@ export class PortfoliosService {
       await queryRunner.commitTransaction();
 
       // Devolvemos la cartera actualizada llamando a tu lógica de mapeo limpio
-      return this.findOneClean(id);
+      // return this.findOneClean(id);
+      return { message: `Cartera ${portfolio.code} actualizada exitosamente` };
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw new BadRequestException(
