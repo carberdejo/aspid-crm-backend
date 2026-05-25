@@ -4,13 +4,15 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, DataSource } from 'typeorm';
+import { Repository, ILike, DataSource, Brackets } from 'typeorm';
 import { Portfolio } from './entities/portfolio.entity';
 import { PortfolioUser } from './entities/portfolio-user.entity';
 import { CreatePortfolioDto } from './dto/create-portfolio.dto';
 import { UpdatePortfolioDto } from './dto/update-portfolio.dto';
 import { CommonValidationService } from 'src/common/common-validation.service';
 import { QueryPortfolioDto } from './dto/query-portfolio.dto';
+import { User } from 'src/users/entities';
+import { Role } from 'src/users/interfaces';
 
 @Injectable()
 export class PortfoliosService {
@@ -40,41 +42,65 @@ export class PortfoliosService {
   }
 
   // FIND ALL UNIFICADO CON BÚSQUEDA Y PAGINACIÓN
-  async findAll(paginationDto: QueryPortfolioDto) {
+  async findAll(paginationDto: QueryPortfolioDto, currentUser: User) {
+    console.log({ currentUser });
     const { limit = 10, offset = 0, term } = paginationDto;
-    const whereCondition = term
-      ? [
-          { code: ILike(`%${term}%`) },
-          { type: ILike(`%${term}%`) },
-          { zone: ILike(`%${term}%`) },
-          { province: ILike(`%${term}%`) },
-        ]
-      : {};
-    const [items, total] = await this.portfolioRepo.findAndCount({
-      where: whereCondition,
-      take: limit,
-      skip: offset,
-      order: { isActive: 'DESC', code: 'ASC' },
-      relations: ['users', 'users.user'], // Trae opcionalmente los usuarios asignados y sus datos básicos
-      select: {
-        id: true,
-        code: true,
-        type: true,
-        province: true,
-        zone: true,
-        isActive: true,
-        users: {
-          id: true,
-          roleInPortfolio: true,
-          user: {
-            id: true,
-            codUser: true,
-            firstName: true,
-            lastName: true,
+    const queryBuilder = this.portfolioRepo
+      .createQueryBuilder('portfolio')
+      // Mantenemos las relaciones que ya tenías
+      .leftJoin('portfolio.users', 'portfolioUser')
+      .leftJoin('portfolioUser.user', 'user')
+      .select([
+        'portfolio.id',
+        'portfolio.code',
+        'portfolio.type',
+        'portfolio.province',
+        'portfolio.zone',
+        'portfolio.isActive',
+        'portfolioUser.id',
+        'portfolioUser.roleInPortfolio',
+        'user.id',
+        'user.codUser',
+        'user.firstName',
+        'user.lastName',
+      ]);
+
+    if ((currentUser.role as Role) !== Role.ADMIN) {
+      // Si el usuario no es admin, filtramos las carteras para mostrar solo las que le corresponden
+      const userPortfolios = await this.findByUser(currentUser.id);
+      const allowedIds = userPortfolios.map((up) => up.portfolioId);
+      if (allowedIds.length === 0) {
+        return {
+          data: {
+            items: [],
+            total: 0,
+            limit,
+            offset,
           },
-        },
-      },
-    });
+        };
+      }
+      queryBuilder.andWhere('portfolio.id IN (:...allowedIds)', { allowedIds });
+    }
+
+    if (term) {
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          qb.where('portfolio.code ILIKE :term', { term: `%${term}%` })
+            .orWhere('portfolio.type ILIKE :term', { term: `%${term}%` })
+            .orWhere('portfolio.zone ILIKE :term', { term: `%${term}%` })
+            .orWhere('portfolio.province ILIKE :term', { term: `%${term}%` });
+        }),
+      );
+    }
+
+    // 3. ORDENAMIENTO Y PAGINACIÓN
+    const [items, total] = await queryBuilder
+      .orderBy('portfolio.isActive', 'DESC')
+      .addOrderBy('portfolio.code', 'ASC')
+      .skip(offset)
+      .take(limit)
+      .getManyAndCount();
+
     return {
       data: {
         items,

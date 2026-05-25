@@ -4,11 +4,12 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { IndustrySegment } from './entities/industry-segment.entity';
 import { CreateIndustrySegmentDto } from './dto/create-industry-segment.dto';
 import { UpdateIndustrySegmentDto } from './dto/update-industry-segment.dto';
 import { QueryIndustrySegmentDto } from './dto/query-industry-segment.dto';
+import { User } from 'src/users/entities/user.entity';
 
 @Injectable()
 export class IndustrySegmentsService {
@@ -34,27 +35,48 @@ export class IndustrySegmentsService {
     return { message: `Segmento ${createDto.name} creado exitosamente` };
   }
 
-  async findAll(query: QueryIndustrySegmentDto) {
+  async findAll(query: QueryIndustrySegmentDto, currentUser: User) {
     const { limit = 10, offset = 0, term } = query;
 
-    const whereCondition = term
-      ? [{ name: ILike(`%${term}%`) }, { code: ILike(`%${term}%`) }]
-      : {}; // Si no hay término, trae todo
+    const queryBuilder = this.segmentRepo.createQueryBuilder('segment');
 
-    const [items, total] = await this.segmentRepo.findAndCount({
-      where: whereCondition,
-      take: limit,
-      skip: offset,
-      order: { isActive: 'DESC', name: 'ASC' }, // Activos primero, luego alfabético
-    });
+    // 1. FILTRO DE SEGURIDAD (Role-Based Access Control)
+    if (currentUser.role !== 'admin') {
+      // Obtenemos los segmentos asignados al usuario actual
+      const allowedIds = await this.getUserSegmentIds(currentUser.id); // Asegúrate de tener este método
 
+      // Return early: Si no tiene segmentos asignados, la respuesta es vacía
+      if (allowedIds.length === 0) {
+        return {
+          data: { items: [], total: 0, limit: +limit, offset: +offset },
+        };
+      }
+
+      // Aplicamos el filtro para que solo vea sus segmentos
+      queryBuilder.andWhere('segment.id IN (:...allowedIds)', { allowedIds });
+    }
+
+    // 2. FILTRO DE BÚSQUEDA (Term)
+    if (term) {
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          qb.where('segment.name ILIKE :term', { term: `%${term}%` }).orWhere(
+            'segment.code ILIKE :term',
+            { term: `%${term}%` },
+          );
+        }),
+      );
+    }
+
+    // 3. EJECUCIÓN (Ordenamiento y Paginación)
+    const [items, total] = await queryBuilder
+      .orderBy('segment.isActive', 'DESC')
+      .addOrderBy('segment.name', 'ASC')
+      .skip(offset)
+      .take(limit)
+      .getManyAndCount();
     return {
-      data: {
-        items,
-        total,
-        limit,
-        offset,
-      },
+      data: { items, total, limit: +limit, offset: +offset },
     };
   }
 
@@ -86,5 +108,22 @@ export class IndustrySegmentsService {
     segment.isActive = true;
     await this.segmentRepo.save(segment);
     return { message: 'Segmento reactivado exitosamente' };
+  }
+
+  //===================
+  // HELPERS
+  //===================
+  async getUserSegmentIds(userId: number): Promise<number[]> {
+    // Utilizamos QueryBuilder para hacer un join entre segmentos, clientes y usuarios, filtrando por el userId, queryBuilder es más eficiente para este tipo de consultas complejas
+    const users = await this.segmentRepo
+      .createQueryBuilder('segment')
+      .leftJoinAndSelect('segment.clients', 'client')
+      .leftJoinAndSelect('client.portfolio', 'portfolio')
+      .leftJoin('portfolio.users', 'clientUser')
+      .where('clientUser.userId = :userId', { userId })
+      .getMany();
+
+    const segmentIds = users.map((segment) => segment.id);
+    return segmentIds;
   }
 }
