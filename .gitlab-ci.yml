@@ -1,0 +1,63 @@
+# Usamos una imagen oficial de Docker para ejecutar comandos de Docker
+image: docker:24.0.5
+
+# Necesitamos este servicio para poder construir imágenes dentro de GitLab
+services:
+  - docker:24.0.5-dind
+
+# Definimos nuestras etapas. Por ahora, solo una.
+stages:
+  - build
+  - deploy
+
+# Variables del pipeline
+variables:
+  # Aquí usamos el nombre de tu repositorio en Docker Hub
+  DOCKER_IMAGE_NAME: "carlozzs/concar-backend"
+
+# --- AQUI EMPIEZA NUESTRO TRABAJO ---
+construir_y_subir_imagen:
+  stage: build
+  script:
+    - echo "Iniciando sesión en Docker Hub..."
+    # Usamos variables secretas para no exponer tus contraseñas en el código
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+    
+    - echo "Construyendo la imagen de NestJS..."
+    # Pasamos la variable NEXT_PUBLIC_API_URL de GitLab al Dockerfile (con comillas por seguridad)
+    - docker build -t $DOCKER_IMAGE_NAME:latest .
+    
+    - echo "Subiendo la imagen a Docker Hub..."
+    - docker push $DOCKER_IMAGE_NAME:latest
+  
+  # Solo queremos que esto se ejecute cuando empujas a la rama principal
+  only:
+    - master
+
+# --- TRABAJO 2: DESPLEGAR ---
+desplegar_produccion:
+  stage: deploy
+  # Usamos alpine porque es ligero y perfecto para conexiones SSH
+  image: alpine:latest
+  # Esto asegura que el deploy SOLO se ejecute si el build fue exitoso
+  needs: ["construir_y_subir_imagen"]
+  
+  # Preparamos el entorno instalando SSH y cargando la llave
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    # Evitamos que pregunte "Are you sure you want to continue connecting?"
+    - ssh-keyscan $SERVER_IP >> ~/.ssh/known_hosts
+
+  # Nos conectamos al servidor y ejecutamos los comandos mágicos
+  script:
+    - echo "Conectando al servidor $SERVER_IP para desplegar..."
+    # AQUI CAMBIA LA RUTA POR LA CARPETA REAL DE TU SERVIDOR
+    - ssh $SERVER_USER@$SERVER_IP "cd /home/acme/applications/acme/concar-v2/concar-backend && docker compose pull && docker compose up -d"
+    - echo "¡Despliegue exitoso!"
+  
+  only:
+    - master
