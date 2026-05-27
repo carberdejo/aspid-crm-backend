@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, DataSource, Brackets } from 'typeorm';
+import { Repository, DataSource, Brackets } from 'typeorm';
 import { Portfolio } from './entities/portfolio.entity';
 import { PortfolioUser } from './entities/portfolio-user.entity';
 import { CreatePortfolioDto } from './dto/create-portfolio.dto';

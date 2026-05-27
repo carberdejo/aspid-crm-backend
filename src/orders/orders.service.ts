@@ -70,6 +70,8 @@ export class OrdersService {
         'po.receivedAt',
         'quote.quoteNumber',
         'client.commercialName',
+        'client.ruc',
+        'po.billingStatus',
       ]);
 
     if (term) {

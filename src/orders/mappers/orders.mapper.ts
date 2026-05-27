@@ -6,6 +6,7 @@ export class PurchaseOrderMapper {
       id: Number(po.id),
       poNumber: po.poNumber,
       receivedAt: po.receivedAt,
+      billingStatus: po.billingStatus,
       // Información de la Cotización
       quote: {
         id: Number(po.quote?.id),
@@ -46,6 +47,7 @@ export class PurchaseOrderMapper {
       quoteNumber: po.quote?.quoteNumber,
       clientName: po.quote?.client?.commercialName,
       ruc: po.quote?.client?.ruc,
+      billingStatus: po.billingStatus,
     };
   }
 }

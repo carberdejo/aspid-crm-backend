@@ -8,7 +8,7 @@ export class PortfolioUserItemDto {
   userId: number;
 
   @IsEnum(PortfolioRole, {
-    message: 'El rol debe ser RESPONSABLE, ING_PROYECTOS o SERVICIOS',
+    message: 'El rol debe ser ASESOR, ING_PROYECTOS o SERVICIOS',
   })
   roleInPortfolio: PortfolioRole;
 }

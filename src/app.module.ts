@@ -19,6 +19,7 @@ import { PortfoliosModule } from './portfolios/portfolios.module';
 import { CatalogsModule } from './catalogs/catalogs.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ScheduleModule } from '@nestjs/schedule';
+import { DeliverysModule } from './deliverys/deliverys.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     InvoicesModule,
     PortfoliosModule,
     CatalogsModule,
+    DeliverysModule,
   ],
   controllers: [AppController],
   providers: [AppService],

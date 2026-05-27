@@ -1,5 +1,5 @@
 export enum PortfolioRole {
-  RESPONSABLE = 'RESPONSABLE',
+  ASESOR = 'ASESOR',
   ING_PROYECTOS = 'ING_PROYECTOS',
   SERVICIOS = 'SERVICIOS',
 }
