@@ -1,6 +1,10 @@
 import { HttpStatus } from '@nestjs/common';
 import { ApiException } from '../../common/exceptions/api.exception';
 
+/**
+ * Exception para visita no encontrada
+ * Específica de este módulo
+ */
 export class VisitNotFoundException extends ApiException {
   constructor(id: number) {
     super(
@@ -12,6 +16,10 @@ export class VisitNotFoundException extends ApiException {
   }
 }
 
+/**
+ * Exception de lógica de negocio: relación inválida entre contacto y cliente
+ * Específica de este módulo
+ */
 export class VisitContactNotBelongToClientException extends ApiException {
   constructor(contactId: number, clientId: number) {
     super(
@@ -23,46 +31,17 @@ export class VisitContactNotBelongToClientException extends ApiException {
   }
 }
 
-export class VisitUserNotFoundException extends ApiException {
-  constructor(userId: number) {
+/**
+ * Exception de lógica de negocio: datos inválidos
+ * Validaciones de formato las maneja class-validator
+ */
+export class VisitDataInvalidException extends ApiException {
+  constructor(details: string) {
     super(
       32,
-      `Usuario con ID ${userId} no encontrado`,
+      `Datos de visita inválidos: ${details}`,
       undefined,
-      HttpStatus.NOT_FOUND,
-    );
-  }
-}
-
-export class VisitClientNotFoundException extends ApiException {
-  constructor(clientId: number) {
-    super(
-      33,
-      `Cliente con ID ${clientId} no encontrado`,
-      undefined,
-      HttpStatus.NOT_FOUND,
-    );
-  }
-}
-
-export class VisitContactNotFoundException extends ApiException {
-  constructor(contactId: number) {
-    super(
-      34,
-      `Contacto con ID ${contactId} no encontrado`,
-      undefined,
-      HttpStatus.NOT_FOUND,
-    );
-  }
-}
-
-export class VisitDepartmentNotFoundException extends ApiException {
-  constructor(departmentId: number) {
-    super(
-      35,
-      `Departamento con ID ${departmentId} no encontrado`,
-      undefined,
-      HttpStatus.NOT_FOUND,
+      HttpStatus.BAD_REQUEST,
     );
   }
 }

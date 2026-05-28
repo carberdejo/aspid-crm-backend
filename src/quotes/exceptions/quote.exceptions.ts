@@ -1,6 +1,10 @@
 import { HttpStatus } from '@nestjs/common';
 import { ApiException } from '../../common/exceptions/api.exception';
 
+/**
+ * Exception para cotización no encontrada
+ * Reutilizable en órdenes e invoices
+ */
 export class QuoteNotFoundException extends ApiException {
   constructor(id: number) {
     super(
@@ -12,6 +16,9 @@ export class QuoteNotFoundException extends ApiException {
   }
 }
 
+/**
+ * Exception para número de cotización duplicado
+ */
 export class QuoteNumberAlreadyExistsException extends ApiException {
   constructor(quoteNumber: string) {
     super(
@@ -23,6 +30,9 @@ export class QuoteNumberAlreadyExistsException extends ApiException {
   }
 }
 
+/**
+ * Exception de lógica de negocio: relación inválida entre contacto y cliente
+ */
 export class QuoteContactNotBelongToClientException extends ApiException {
   constructor(contactId: number, clientId: number) {
     super(
@@ -34,55 +44,30 @@ export class QuoteContactNotBelongToClientException extends ApiException {
   }
 }
 
-export class QuoteUserNotFoundException extends ApiException {
-  constructor(userId: number) {
-    super(
-      53,
-      `Usuario con ID ${userId} no encontrado`,
-      undefined,
-      HttpStatus.NOT_FOUND,
-    );
-  }
-}
-
-export class QuoteClientNotFoundException extends ApiException {
-  constructor(clientId: number) {
-    super(
-      54,
-      `Cliente con ID ${clientId} no encontrado`,
-      undefined,
-      HttpStatus.NOT_FOUND,
-    );
-  }
-}
-
-export class QuoteContactNotFoundException extends ApiException {
-  constructor(contactId: number) {
-    super(
-      55,
-      `Contacto con ID ${contactId} no encontrado`,
-      undefined,
-      HttpStatus.NOT_FOUND,
-    );
-  }
-}
-
-export class QuoteDepartmentNotFoundException extends ApiException {
-  constructor(departmentId: number) {
-    super(
-      56,
-      `Departamento con ID ${departmentId} no encontrado`,
-      undefined,
-      HttpStatus.NOT_FOUND,
-    );
-  }
-}
-
+/**
+ * Exception de lógica de negocio: transición de estado inválida
+ * Específica de este módulo
+ */
 export class QuoteInvalidStatusTransitionException extends ApiException {
   constructor(currentStatus: string, newStatus: string) {
     super(
-      57,
+      53,
       `No se puede cambiar de estado '${currentStatus}' a '${newStatus}'`,
+      undefined,
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+}
+
+/**
+ * Exception de lógica de negocio: datos inválidos
+ * Validaciones de formato las maneja class-validator
+ */
+export class QuoteDataInvalidException extends ApiException {
+  constructor(details: string) {
+    super(
+      54,
+      `Datos de cotización inválidos: ${details}`,
       undefined,
       HttpStatus.BAD_REQUEST,
     );

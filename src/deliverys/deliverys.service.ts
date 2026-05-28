@@ -41,7 +41,8 @@ export class DeliverysService {
         'user.firstName',
         'user.lastName',
       ]);
-    return await queyryBuilder.getMany();
+    const [items, total] = await queyryBuilder.getManyAndCount();
+    return { data: { items, total } };
   }
 
   async findOne(id: number) {

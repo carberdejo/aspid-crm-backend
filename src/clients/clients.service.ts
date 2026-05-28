@@ -18,7 +18,7 @@ import { CreateContactClientDto } from './dto';
 import {
   ClientNotFoundException,
   ClientRucAlreadyExistsException,
-  ContactClientNotFoundException,
+  ContactNotFoundException,
 } from './exceptions/client.exceptions';
 import { User } from 'src/users/entities';
 import { PortfolioUser } from 'src/portfolios/entities/portfolio-user.entity';
@@ -206,7 +206,7 @@ export class ClientsService {
       relations: ['client'],
     });
 
-    if (!contact) throw new ContactClientNotFoundException(id);
+    if (!contact) throw new ContactNotFoundException(id);
 
     return {
       message: 'Contacto obtenido exitosamente',

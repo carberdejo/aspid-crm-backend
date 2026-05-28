@@ -73,12 +73,39 @@ export class InvoicesService {
     }
   }
 
-  findAll() {
-    return `This action returns all invoices`;
+  async findAll() {
+    const queryBuilder = this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .leftJoin('invoice.order', 'order')
+      .leftJoin('order.quote', 'quote')
+      .leftJoin('quote.client', 'client')
+      .select([
+        'invoice.id',
+        'invoice.invoiceNumber',
+        'invoice.amount',
+        'invoice.issueDate',
+        'order.poNumber',
+        'client.businessName',
+        'client.ruc',
+      ]);
+    console.log('findall de invoices');
+    return await queryBuilder.getMany();
   }
 
   findOne(id: number) {
-    return `This action returns a #${id} invoice`;
+    const queryBuilder = this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.order', 'order')
+      .leftJoinAndSelect('order.client', 'client')
+      .select([
+        'invoice.id',
+        'invoice.invoiceNumber',
+        'invoice.amount',
+        'invoice.issueDate',
+        'order.poNumber',
+      ])
+      .where('invoice.id = :id', { id });
+    return queryBuilder.getOne();
   }
 
   // update(id: number, updateInvoiceDto: UpdateInvoiceDto) {

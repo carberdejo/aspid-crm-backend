@@ -9,6 +9,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { BillingStatus } from '../interfaces/billing-status.enum';
+import { QuoteCurrency } from 'src/quotes/interfaces/quote-currency.enum';
 
 @Entity({ name: 'purchase_order' })
 export class PurchaseOrder {
@@ -31,6 +32,21 @@ export class PurchaseOrder {
     default: BillingStatus.PENDIENTE_FACTURACION,
   })
   billingStatus: BillingStatus;
+
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 2, // 2 decimales
+    default: 0,
+  })
+  amount: number;
+
+  @Column({
+    type: 'enum',
+    enum: QuoteCurrency,
+    default: QuoteCurrency.USD,
+  })
+  currency: QuoteCurrency;
 
   @OneToOne(() => Quote)
   @JoinColumn({ name: 'quote_id' })

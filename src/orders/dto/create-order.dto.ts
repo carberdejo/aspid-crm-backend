@@ -4,7 +4,9 @@ import {
   IsNumber,
   IsOptional,
   IsISO8601,
+  Min,
 } from 'class-validator';
+import { QuoteCurrency } from 'src/quotes/interfaces/quote-currency.enum';
 
 export class CreatePurchaseOrderDto {
   @IsString()
@@ -18,4 +20,13 @@ export class CreatePurchaseOrderDto {
   @IsNumber()
   @IsNotEmpty()
   quoteId: number;
+
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0.01)
+  amount: number;
+
+  @IsOptional()
+  @IsString()
+  currency?: QuoteCurrency;
 }

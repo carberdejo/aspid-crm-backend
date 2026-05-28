@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { CreatePurchaseOrderDto } from './dto/create-order.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PurchaseOrder } from './entities/order.entity';
@@ -8,6 +8,7 @@ import { CommonValidationService } from 'src/common/common-validation.service';
 import { Quote } from 'src/quotes/entities/quote.entity';
 import { QuoteStatus } from 'src/quotes/interfaces/quote-status.enum';
 import { PurchaseOrderMapper } from './mappers/orders.mapper';
+import { PurchaseOrderNotFoundException } from './exceptions/order.exceptions';
 
 @Injectable()
 export class OrdersService {
@@ -72,6 +73,8 @@ export class OrdersService {
         'client.commercialName',
         'client.ruc',
         'po.billingStatus',
+        'po.amount',
+        'po.currency',
       ]);
 
     if (term) {
@@ -127,9 +130,7 @@ export class OrdersService {
       .where('po.id = :id', { id })
       .getOne();
 
-    if (!po) {
-      throw new NotFoundException(`Orden de Compra con ID ${id} no encontrada`);
-    }
+    if (!po) throw new PurchaseOrderNotFoundException(id);
 
     return PurchaseOrderMapper.toResponse(po);
   }
