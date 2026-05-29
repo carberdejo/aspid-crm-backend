@@ -60,11 +60,13 @@ export class OrdersService {
       order,
       startDate,
       endDate,
+      billingStatus,
     } = queryDto;
     const queryBuilder = this.poRepository
       .createQueryBuilder('po')
       .leftJoinAndSelect('po.quote', 'quote')
       .leftJoin('quote.client', 'client')
+      .leftJoin('po.invoices', 'invoice')
       .select([
         'po.id',
         'po.poNumber',
@@ -75,6 +77,8 @@ export class OrdersService {
         'po.billingStatus',
         'po.amount',
         'po.currency',
+        'invoice.id',
+        'invoice.amount',
       ]);
 
     if (term) {
@@ -98,6 +102,12 @@ export class OrdersService {
     }
     if (queryDto.userId) {
       queryBuilder.andWhere('quote.userId = :userId', { userId });
+    }
+
+    if (billingStatus && billingStatus.length > 0) {
+      queryBuilder.andWhere('po.billingStatus IN (:...billingStatus)', {
+        billingStatus,
+      });
     }
 
     if (startDate)

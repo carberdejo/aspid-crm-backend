@@ -1,11 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
-import { DataSource, Repository } from 'typeorm';
+import { Brackets, DataSource, Repository } from 'typeorm';
 import { Invoice } from './entities/invoice.entity';
 import { CommonValidationService } from 'src/common/common-validation.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PurchaseOrder } from 'src/orders/entities/order.entity';
 import { BillingStatus } from 'src/orders/interfaces/billing-status.enum';
+import { InvoiceNotFoundException } from './exceptions/invoice.exceptions';
+import { QueryInvoiceDto } from './dto/query-invoice.dto';
+import { InvoiceMapper } from './mappers/invoice.mapper';
 
 @Injectable()
 export class InvoicesService {
@@ -16,11 +19,12 @@ export class InvoicesService {
     private dataSource: DataSource, // Para manejar la transacción
   ) {}
   async create(createInvoiceDto: CreateInvoiceDto) {
-    const { orderId, amount, invoiceNumber, issueDate } = createInvoiceDto;
+    const { orderId, amount, invoiceNumber, issueDate, currency } =
+      createInvoiceDto;
     const order =
       await this.commonValidationService.validatePurchaseOrder(orderId);
 
-    const totalAmount = order.quote.amount;
+    const totalAmount = order.amount;
     console.log({ totalAmount });
     const previousInvoices = await this.invoiceRepository.find({
       where: { orderId },
@@ -47,6 +51,7 @@ export class InvoicesService {
         invoiceNumber,
         amount,
         issueDate,
+        currency,
       });
       await queryRunner.manager.save(newInvoice);
 
@@ -63,7 +68,7 @@ export class InvoicesService {
 
       await queryRunner.commitTransaction();
       return {
-        message: 'Factura creada exitosamente',
+        message: `Factura con nro ${createInvoiceDto.invoiceNumber} creada exitosamente`,
       };
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -73,7 +78,18 @@ export class InvoicesService {
     }
   }
 
-  async findAll() {
+  async findAll(queryDto: QueryInvoiceDto) {
+    const {
+      limit = 10,
+      offset = 0,
+      term,
+      departmentId,
+      clientId,
+      userId,
+      order,
+      startDate,
+      endDate,
+    } = queryDto;
     const queryBuilder = this.invoiceRepository
       .createQueryBuilder('invoice')
       .leftJoin('invoice.order', 'order')
@@ -83,16 +99,62 @@ export class InvoicesService {
         'invoice.id',
         'invoice.invoiceNumber',
         'invoice.amount',
+        'invoice.currency',
         'invoice.issueDate',
+        'quote.id',
+        'quote.quoteNumber',
+        'order.id',
         'order.poNumber',
+        'client.id',
         'client.businessName',
         'client.ruc',
       ]);
-    console.log('findall de invoices');
-    return await queryBuilder.getMany();
+
+    if (term) {
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          qb.where('order.poNumber ILIKE :term', { term: `%${term}%` })
+            .orWhere('quote.quoteNumber ILIKE :term', { term: `%${term}%` })
+            .orWhere('invoice.invoiceNumber ILIKE :term', { term: `%${term}%` })
+            .orWhere('client.businessName ILIKE :term', {
+              term: `%${term}%`,
+            });
+        }),
+      );
+    }
+
+    if (queryDto.departmentId)
+      queryBuilder.andWhere('quote.departmentId = :departmentId', {
+        departmentId,
+      });
+
+    if (queryDto.clientId)
+      queryBuilder.andWhere('quote.clientId = :clientId', { clientId });
+
+    if (queryDto.userId)
+      queryBuilder.andWhere('quote.userId = :userId', { userId });
+
+    if (startDate)
+      queryBuilder.andWhere('invoice.issueDate >= :startDate', { startDate });
+
+    if (endDate)
+      queryBuilder.andWhere('invoice.issueDate <= :endDate', { endDate });
+
+    const [items, total] = await queryBuilder
+      .take(limit)
+      .skip(offset)
+      .orderBy('invoice.issueDate', order)
+      .getManyAndCount();
+
+    return {
+      items: items.map((invoice) => InvoiceMapper.toListResponse(invoice)),
+      total,
+      limit,
+      offset,
+    };
   }
 
-  findOne(id: number) {
+  async findOne(id: number) {
     const queryBuilder = this.invoiceRepository
       .createQueryBuilder('invoice')
       .leftJoinAndSelect('invoice.order', 'order')
@@ -105,7 +167,10 @@ export class InvoicesService {
         'order.poNumber',
       ])
       .where('invoice.id = :id', { id });
-    return queryBuilder.getOne();
+    const invoice = await queryBuilder.getOne();
+    if (!invoice) throw new InvoiceNotFoundException(id);
+
+    return invoice;
   }
 
   // update(id: number, updateInvoiceDto: UpdateInvoiceDto) {

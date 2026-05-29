@@ -1,4 +1,5 @@
 import { PurchaseOrder } from 'src/orders/entities/order.entity';
+import { QuoteCurrency } from 'src/quotes/interfaces/quote-currency.enum';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -35,6 +36,13 @@ export class Invoice {
   // por eso usamos el tipo numérico o lo parseamos en el servicio.
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   amount: number;
+
+  @Column({
+    type: 'enum',
+    enum: QuoteCurrency,
+    default: QuoteCurrency.USD,
+  })
+  currency: QuoteCurrency;
 
   // Relación: Muchas facturas pertenecen a una Orden de Compra
   @ManyToOne(() => PurchaseOrder, (order) => order.invoices)

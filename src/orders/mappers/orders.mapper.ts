@@ -41,6 +41,19 @@ export class PurchaseOrderMapper {
   }
 
   static toListResponse(po: PurchaseOrder) {
+    // 1. Sumamos de forma segura los montos de todas las facturas existente
+    const totalInvoiced =
+      po.invoices?.reduce((sum, inv) => sum + Number(inv.amount), 0) || 0;
+
+    // 2. Restamos el total facturado del monto original de la OC
+    const remaining = Number(po.amount) - totalInvoiced;
+    const remainingAmount = Math.max(0, Number(remaining.toFixed(2)));
+
+    // 3. Cálculo del porcentaje de avance (redondeado a entero para la UI)
+    const billingPercentage =
+      Number(po.amount) > 0
+        ? Math.min(100, Math.round((totalInvoiced / Number(po.amount)) * 100))
+        : 0;
     // Versión ligera para la tabla
     return {
       id: Number(po.id),
@@ -52,6 +65,10 @@ export class PurchaseOrderMapper {
       billingStatus: po.billingStatus,
       amount: po.amount,
       currency: po.currency,
+      // Campos de seguimiento de facturación
+      invoicedAmount: Number(totalInvoiced.toFixed(2)),
+      remainingAmount: remainingAmount,
+      billingPercentage: billingPercentage,
     };
   }
 }

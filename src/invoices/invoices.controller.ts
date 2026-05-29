@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
+import { QueryInvoiceDto } from './dto/query-invoice.dto';
 
 @Controller('invoices')
 export class InvoicesController {
@@ -12,8 +13,8 @@ export class InvoicesController {
   }
 
   @Get()
-  findAll() {
-    return this.invoicesService.findAll();
+  findAll(@Query() query: QueryInvoiceDto) {
+    return this.invoicesService.findAll(query);
   }
 
   @Get(':id')

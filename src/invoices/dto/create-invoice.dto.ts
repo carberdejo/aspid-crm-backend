@@ -4,7 +4,9 @@ import {
   IsNotEmpty,
   IsPositive,
   IsDateString,
+  IsOptional,
 } from 'class-validator';
+import { QuoteCurrency } from 'src/quotes/interfaces/quote-currency.enum';
 
 export class CreateInvoiceDto {
   @IsNumber()
@@ -23,4 +25,8 @@ export class CreateInvoiceDto {
   @IsDateString()
   @IsNotEmpty()
   issueDate: string;
+
+  @IsOptional()
+  @IsString()
+  currency?: QuoteCurrency;
 }

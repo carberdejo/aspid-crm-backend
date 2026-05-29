@@ -37,6 +37,7 @@ export class DeliverysService {
         'delivery.deliveryItems',
         'client.id',
         'client.businessName',
+        'client.ruc',
         'user.id',
         'user.firstName',
         'user.lastName',
