@@ -51,11 +51,30 @@ export class AuthService {
       .where('user.email = :email', { email })
       .getOne();
 
+    // Validamos que el usuario exista
     if (!user)
       throw new ApiException(401, 'Credentials are not valid (email)', []);
 
+    // Validamos que la contraseña sea correcta
     if (!bcrypt.compareSync(password, user.password))
       throw new ApiException(401, 'Credentials are not valid (password)', []);
+
+    // Validamos que el usuario esté activo
+    if (user.isActive === false)
+      throw new ApiException(403, 'User account is inactive', []);
+
+    //validamos y eliminamos si pasan maximo 5 sesiones activas
+    const activeSessionsCount = await this.userSessionRepository.count({
+      where: { userId: user.id },
+    });
+    if (activeSessionsCount >= 5) {
+      // Eliminar la sesión más antigua
+      const oldSession = await this.userSessionRepository.findOne({
+        where: { userId: user.id },
+        order: { expiresAt: 'ASC' }, // La sesión que expira primero es la más antigua
+      });
+      if (oldSession) await this.userSessionRepository.delete(oldSession.id);
+    }
 
     const payload = {
       sub: user.id,
