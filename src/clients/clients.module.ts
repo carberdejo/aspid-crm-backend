@@ -5,6 +5,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Client, ContactClient } from './entities';
 import { Portfolio } from 'src/portfolios/entities/portfolio.entity';
 import { IndustrySegment } from 'src/catalogs/entities/industry-segment.entity';
+import { UserClientExceptionsController } from './user-client-exceptions.controller';
+import { UserClientExceptionsService } from './user-client-exceptions.service';
+import { UserClientException } from './entities/user-client-exception.entity';
+import { CommonModule } from 'src/common/common.module';
 
 @Module({
   imports: [
@@ -13,10 +17,12 @@ import { IndustrySegment } from 'src/catalogs/entities/industry-segment.entity';
       ContactClient,
       Portfolio,
       IndustrySegment,
+      UserClientException,
     ]),
+    CommonModule,
   ],
-  controllers: [ClientsController],
-  providers: [ClientsService],
+  controllers: [ClientsController, UserClientExceptionsController],
+  providers: [ClientsService, UserClientExceptionsService],
   exports: [ClientsService, TypeOrmModule],
 })
 export class ClientsModule {}
