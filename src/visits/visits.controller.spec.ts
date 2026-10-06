@@ -1,72 +1,29 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { VisitsController } from './visits.controller';
 import { VisitsService } from './visits.service';
-import { Visit } from './entities/visit.entity';
-import { User } from '../users/entities/user.entity';
-import { Client } from '../clients/entities/client.entity';
-import { ContactClient } from '../clients/entities/contact-client.entity';
-import { Department } from '../departments/entities/department.entity';
-import { QueryVisitDto } from './dto/query-visit.dto';
+import { User } from 'src/users/entities';
+import { Role } from 'src/users/interfaces';
 
 describe('VisitsController', () => {
   let controller: VisitsController;
-  let service: VisitsService;
 
-  // Define mocks
-  const mockVisitRepository = {
-    findOne: jest.fn(),
-    save: jest.fn(),
+  const currentUser = { id: '5', role: Role.USER } as unknown as User;
+
+  const mockVisitsService = {
     create: jest.fn(),
-    createQueryBuilder: jest.fn(),
-  };
-
-  const mockUserRepository = {
+    findAll: jest.fn(),
     findOne: jest.fn(),
-  };
-
-  const mockClientRepository = {
-    findOne: jest.fn(),
-  };
-
-  const mockContactClientRepository = {
-    findOne: jest.fn(),
-  };
-
-  const mockDepartmentRepository = {
-    findOne: jest.fn(),
+    update: jest.fn(),
+    remove: jest.fn(),
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [VisitsController],
-      providers: [
-        VisitsService,
-        {
-          provide: getRepositoryToken(Visit),
-          useValue: mockVisitRepository,
-        },
-        {
-          provide: getRepositoryToken(User),
-          useValue: mockUserRepository,
-        },
-        {
-          provide: getRepositoryToken(Client),
-          useValue: mockClientRepository,
-        },
-        {
-          provide: getRepositoryToken(ContactClient),
-          useValue: mockContactClientRepository,
-        },
-        {
-          provide: getRepositoryToken(Department),
-          useValue: mockDepartmentRepository,
-        },
-      ],
+      providers: [{ provide: VisitsService, useValue: mockVisitsService }],
     }).compile();
 
     controller = module.get<VisitsController>(VisitsController);
-    service = module.get<VisitsService>(VisitsService);
   });
 
   afterEach(() => {
@@ -77,80 +34,19 @@ describe('VisitsController', () => {
     expect(controller).toBeDefined();
   });
 
-  describe('findAll', () => {
-    it('should call service.findAll with query params', async () => {
-      // ARRANGE
-      const queryDto: QueryVisitDto = { limit: 10, offset: 0 };
-      const expectedResponse = {
-        data: {
-          items: [
-            {
-              id: 7,
-              date: new Date('2026-04-15'),
-              visitTopics: 'Test',
-              outcomeSummary: 'Test summary',
-              departmentId: 1,
-              userId: 4,
-              clientId: 1,
-              contactId: 3,
-              user: {
-                id: 4,
-                codUser: '2026002',
-                firstName: 'Carlos',
-                lastName: 'Berdejo',
-              },
-              client: {
-                id: 1,
-                commercialName: 'ACME Soluciones',
-                ruc: '20544699939',
-              },
-              contact: {
-                id: 3,
-                firstName: 'JOSE',
-                lastName: 'ROJAS',
-                position: 'GERENTE',
-              },
-            },
-          ],
-          total: 1,
-          limit: 10,
-          offset: 0,
-        },
-      };
+  // El alcance depende del usuario autenticado: cada endpoint debe pasarlo al servicio
+  it('should pass the authenticated user to every service call', async () => {
+    const query = { limit: 10, offset: 0 };
+    const dto = { visitTopics: 'cambio' };
 
-      jest.spyOn(service, 'findAll').mockResolvedValue(expectedResponse);
+    await controller.findAll(query, currentUser);
+    await controller.findOne(10, currentUser);
+    await controller.update(10, dto, currentUser);
+    await controller.remove(10, currentUser);
 
-      // ACT
-      const result = await controller.findAll(queryDto);
-
-      // ASSERT
-      expect(service.findAll).toHaveBeenCalledWith(queryDto);
-      expect(result).toEqual(expectedResponse);
-      expect(result.data.items[0]).not.toHaveProperty('user.email');
-      expect(result.data.items[0]).not.toHaveProperty('client.businessName');
-    });
-
-    it('should return optimized response with limited relationship fields', async () => {
-      // ARRANGE
-      const queryDto: QueryVisitDto = { limit: 5, offset: 0, clientId: 1 };
-      const mockResponse = {
-        data: {
-          items: [],
-          total: 0,
-          limit: 5,
-          offset: 0,
-        },
-      };
-
-      jest.spyOn(service, 'findAll').mockResolvedValue(mockResponse);
-
-      // ACT
-      const result = await controller.findAll(queryDto);
-
-      // ASSERT
-      expect(result.data.limit).toBe(5);
-      expect(result.data.items).toEqual([]);
-      expect(service.findAll).toHaveBeenCalledWith(queryDto);
-    });
+    expect(mockVisitsService.findAll).toHaveBeenCalledWith(query, currentUser);
+    expect(mockVisitsService.findOne).toHaveBeenCalledWith(10, currentUser);
+    expect(mockVisitsService.update).toHaveBeenCalledWith(10, dto, currentUser);
+    expect(mockVisitsService.remove).toHaveBeenCalledWith(10, currentUser);
   });
 });

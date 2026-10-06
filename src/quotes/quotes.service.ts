@@ -15,6 +15,10 @@ import {
   QuoteNotFoundException,
 } from './exceptions/quote.exceptions';
 import { ExchangeRateService } from 'src/common/exchange-rate.service';
+import { AccessScopeService } from 'src/common/access/access-scope.service';
+import { User } from 'src/users/entities';
+
+const RESOURCE_LABEL = 'la cotización';
 
 @Injectable()
 export class QuotesService {
@@ -24,16 +28,18 @@ export class QuotesService {
     private readonly quoteRepository: Repository<Quote>,
     private readonly commonValidationService: CommonValidationService,
     private readonly exchangeRateService: ExchangeRateService,
+    private readonly accessScopeService: AccessScopeService,
   ) {}
-  async create(createQuoteDto: CreateQuoteDto) {
+  async create(createQuoteDto: CreateQuoteDto, currentUser: User) {
     this.logger.log('Creating new quote...');
 
-    // Validar que el departamento exista
-    await this.commonValidationService.findDepartmentById(
+    // Dueño efectivo: el del token para un user; el indicado (validado) para un admin.
+    // También valida que el área exista y que el dueño pertenezca a ella.
+    const userId = await this.accessScopeService.resolveOwner(
+      currentUser,
       createQuoteDto.departmentId,
+      createQuoteDto.userId,
     );
-    // Validar que el usuario exista
-    await this.commonValidationService.findUserById(createQuoteDto.userId);
     // Validar que el cliente exista
     const client = await this.commonValidationService.findClientById(
       createQuoteDto.clientId,
@@ -43,7 +49,7 @@ export class QuotesService {
       createQuoteDto.contactId,
     );
     // Validar que el contacto pertenezca al cliente
-    if (contact.clientId !== client.id) {
+    if (Number(contact.clientId) !== Number(client.id)) {
       throw new ApiException(
         400,
         `El contacto con ID ${createQuoteDto.contactId} no pertenece al cliente con ID ${createQuoteDto.clientId}`,
@@ -52,7 +58,7 @@ export class QuotesService {
       );
     }
     // Crear y guardar la cotización
-    const quote = this.quoteRepository.create(createQuoteDto);
+    const quote = this.quoteRepository.create({ ...createQuoteDto, userId });
     const savedQuote = await this.quoteRepository.save(quote);
 
     this.logger.log(
@@ -65,7 +71,7 @@ export class QuotesService {
     };
   }
 
-  async findAll(queryQuoteDto: QueryQuoteDto) {
+  async findAll(queryQuoteDto: QueryQuoteDto, currentUser: User) {
     const {
       limit = 10,
       offset = 0,
@@ -93,6 +99,13 @@ export class QuotesService {
         'contact.position',
       ])
       .leftJoinAndSelect('quote.collaborator', 'collaborator'); // Colaborador asignado
+
+    // Alcance obligatorio: un user ve las cotizaciones propias o donde es colaborador,
+    // solo en sus áreas (admin ve todo). Se aplica antes del clone para que el
+    // total en USD tampoco incluya cotizaciones ajenas.
+    this.accessScopeService.applyScope(queryBuilder, 'quote', currentUser, {
+      readerFields: ['collaboratorId'],
+    });
 
     // --- FILTROS ESPECÍFICOS DE QUOTE ---
 
@@ -183,12 +196,17 @@ export class QuotesService {
     };
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, currentUser: User) {
     this.logger.log(`Fetching quote with ID: ${id}`);
 
     const quote = await this.findOneInternal(id);
 
     if (!quote) throw new QuoteNotFoundException(id);
+
+    // El colaborador puede ver la cotización (solo lectura)
+    this.accessScopeService.assertCanRead(quote, currentUser, RESOURCE_LABEL, [
+      quote.collaboratorId,
+    ]);
 
     // --- USAMOS EL MAPPER QUE CREAMOS ANTES ---
     const optimizedQuote = QuoteMapper.toResponse(quote, true);
@@ -197,19 +215,27 @@ export class QuotesService {
     return optimizedQuote;
   }
 
-  async update(id: number, updateQuoteDto: UpdateQuoteDto) {
+  async update(id: number, updateQuoteDto: UpdateQuoteDto, currentUser: User) {
     this.logger.log(`Updating quote with ID: ${id}`);
-    console.log('esto es la data: ', updateQuoteDto.description);
     // 1. Verificar que la cotización existe
     const quote = await this.quoteRepository.findOneBy({ id });
     if (!quote) {
       throw new QuoteNotFoundException(id);
     }
 
-    // Validar que el usuario exista
-    if (updateQuoteDto.userId) {
-      await this.commonValidationService.findUserById(updateQuoteDto.userId);
-    }
+    // Solo el dueño o un admin pueden editar (el colaborador no)
+    this.accessScopeService.assertCanModify(quote, currentUser, RESOURCE_LABEL);
+
+    // Si la edición cambia el dueño o el área, se revalidan con las mismas reglas que al crear
+    const ownerId = await this.accessScopeService.resolveOwnerOnUpdate(
+      currentUser,
+      quote,
+      updateQuoteDto,
+    );
+    const changes: UpdateQuoteDto =
+      ownerId === undefined
+        ? updateQuoteDto
+        : { ...updateQuoteDto, userId: ownerId };
 
     // 2. Validaciones de integridad si se envían IDs nuevos
     if (updateQuoteDto.clientId) {
@@ -235,7 +261,7 @@ export class QuotesService {
 
     // 3. Ejecutar la actualización con MERGE
     // merge "pisa" los valores de 'quote' con los de 'updateQuoteDto'
-    const updatedEntity = this.quoteRepository.merge(quote, updateQuoteDto);
+    const updatedEntity = this.quoteRepository.merge(quote, changes);
 
     // Guardamos la entidad mezclada
     await this.quoteRepository.save(updatedEntity);
@@ -253,13 +279,16 @@ export class QuotesService {
     };
   }
 
-  async remove(id: number, removeQuoteDto: RemoveQuoteDto) {
+  async remove(id: number, removeQuoteDto: RemoveQuoteDto, currentUser: User) {
     this.logger.log(`Soft-deleting quote with ID: ${id}`);
 
     // 1. Buscamos la cotización
     const quote = await this.quoteRepository.findOneBy({ id: Number(id) });
 
     if (!quote) throw new QuoteNotFoundException(id);
+
+    // Solo el dueño o un admin pueden rechazarla
+    this.accessScopeService.assertCanModify(quote, currentUser, RESOURCE_LABEL);
 
     // 2. Validar si ya está rechazada para no repetir el proceso
     if ((quote.status as QuoteStatus) === QuoteStatus.RECHAZADO) {

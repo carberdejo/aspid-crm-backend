@@ -1,11 +1,20 @@
-import { IsNotEmpty, IsNumber, IsString, IsDateString } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+  IsDateString,
+  IsOptional,
+} from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateVisitDto {
-  @ApiProperty({ description: 'ID del usuario que realiza la visita' })
+  @ApiPropertyOptional({
+    description:
+      'ID del usuario que realiza la visita. Solo lo considera un admin; para un usuario se toma del token.',
+  })
+  @IsOptional()
   @IsNumber()
-  @IsNotEmpty()
-  userId: number;
+  userId?: number;
 
   @ApiProperty({ description: 'ID del cliente visitado' })
   @IsNumber()

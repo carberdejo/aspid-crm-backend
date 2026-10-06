@@ -7,11 +7,15 @@ import { QueryVisitDto } from './dto/query-visit.dto';
 import { Visit } from './entities/visit.entity';
 
 import { CommonValidationService } from 'src/common/common-validation.service';
+import { AccessScopeService } from 'src/common/access/access-scope.service';
+import { User } from 'src/users/entities';
 import {
   VisitNotFoundException,
   VisitContactNotBelongToClientException,
 } from './exceptions/visit.exceptions';
 import { VisitMapper } from './mappers/visits.mapper';
+
+const RESOURCE_LABEL = 'la visita';
 
 @Injectable()
 export class VisitsService {
@@ -21,10 +25,18 @@ export class VisitsService {
     @InjectRepository(Visit)
     private readonly visitRepository: Repository<Visit>,
     private readonly commonValidationService: CommonValidationService,
+    private readonly accessScopeService: AccessScopeService,
   ) {}
 
-  async create(createVisitDto: CreateVisitDto) {
+  async create(createVisitDto: CreateVisitDto, currentUser: User) {
     this.logger.log('Creating new visit...');
+
+    // Dueño efectivo: el del token para un user; el indicado (validado) para un admin
+    const userId = await this.accessScopeService.resolveOwner(
+      currentUser,
+      createVisitDto.departmentId,
+      createVisitDto.userId,
+    );
 
     const client = await this.commonValidationService.findClientById(
       createVisitDto.clientId,
@@ -34,18 +46,14 @@ export class VisitsService {
       createVisitDto.contactId,
     );
 
-    if (contact.clientId !== client.id) {
+    if (Number(contact.clientId) !== Number(client.id)) {
       throw new VisitContactNotBelongToClientException(
         createVisitDto.contactId,
         createVisitDto.clientId,
       );
     }
-    await this.commonValidationService.findUserById(createVisitDto.userId);
-    await this.commonValidationService.findDepartmentById(
-      createVisitDto.departmentId,
-    );
 
-    const visit = this.visitRepository.create(createVisitDto);
+    const visit = this.visitRepository.create({ ...createVisitDto, userId });
     const savedVisit = await this.visitRepository.save(visit);
 
     this.logger.log(`Visit created successfully with ID: ${savedVisit.id}`);
@@ -54,7 +62,7 @@ export class VisitsService {
     };
   }
 
-  async findAll(queryVisitDto: QueryVisitDto) {
+  async findAll(queryVisitDto: QueryVisitDto, currentUser: User) {
     const {
       limit = 10,
       offset = 0,
@@ -65,18 +73,15 @@ export class VisitsService {
       endDate,
       term,
     } = queryVisitDto;
-    console.log('--- DEBUG FILTROS ---');
-    console.log('Valor crudo de startDate:', queryVisitDto.startDate);
-    console.log('Tipo de dato de startDate:', typeof queryVisitDto.startDate);
-
-    console.log('Valor crudo de endDate:', queryVisitDto.endDate);
-    console.log('Tipo de dato de endDate:', typeof queryVisitDto.endDate);
 
     const queryBuilder = this.visitRepository
       .createQueryBuilder('visit')
       .leftJoinAndSelect('visit.user', 'user')
       .leftJoinAndSelect('visit.client', 'client') // Cargamos relaciones básicas
       .leftJoinAndSelect('visit.contact', 'contact');
+
+    // Alcance obligatorio: un user solo ve sus visitas en sus áreas (admin ve todo)
+    this.accessScopeService.applyScope(queryBuilder, 'visit', currentUser);
 
     // Filtros Dinámicos (Mejorado para legibilidad)
     if (term) {
@@ -122,7 +127,7 @@ export class VisitsService {
     };
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, currentUser: User) {
     this.logger.log(`Fetching visit with ID: ${id}`);
 
     const visit = await this.visitRepository
@@ -135,20 +140,30 @@ export class VisitsService {
 
     if (!visit) throw new VisitNotFoundException(id);
 
+    this.accessScopeService.assertCanRead(visit, currentUser, RESOURCE_LABEL);
+
     this.logger.log(`Visit retrieved successfully`);
     return VisitMapper.toResponse(visit, true);
-    return visit;
   }
 
-  async update(id: number, updateVisitDto: UpdateVisitDto) {
+  async update(id: number, updateVisitDto: UpdateVisitDto, currentUser: User) {
     this.logger.log(`Updating visit with ID: ${id}`);
 
     const visit = await this.visitRepository.findOne({ where: { id } });
     if (!visit) throw new VisitNotFoundException(id);
 
-    // Si se está actualizando userId, validar que exista
-    if (updateVisitDto.userId)
-      await this.commonValidationService.findUserById(updateVisitDto.userId);
+    this.accessScopeService.assertCanModify(visit, currentUser, RESOURCE_LABEL);
+
+    // Si la edición cambia el dueño o el área, se revalidan con las mismas reglas que al crear
+    const ownerId = await this.accessScopeService.resolveOwnerOnUpdate(
+      currentUser,
+      visit,
+      updateVisitDto,
+    );
+    const changes: UpdateVisitDto =
+      ownerId === undefined
+        ? updateVisitDto
+        : { ...updateVisitDto, userId: ownerId };
 
     // Si se está actualizando clientId, validar que exista
     if (updateVisitDto.clientId)
@@ -163,7 +178,7 @@ export class VisitsService {
       );
 
       const clientIdToCheck = updateVisitDto.clientId || visit.clientId;
-      if (contact.clientId !== clientIdToCheck) {
+      if (Number(contact.clientId) !== Number(clientIdToCheck)) {
         throw new VisitContactNotBelongToClientException(
           updateVisitDto.contactId,
           clientIdToCheck,
@@ -171,10 +186,10 @@ export class VisitsService {
       }
     }
 
-    await this.visitRepository.update(id, updateVisitDto);
+    await this.visitRepository.update(id, changes);
 
     // Obtener la visita actualizada con relaciones (sin incluir contacts del cliente)
-    const updatedVisitResponse = await this.findOne(id);
+    const updatedVisitResponse = await this.findOne(id, currentUser);
 
     return {
       message: 'Visita actualizada exitosamente',
@@ -182,11 +197,13 @@ export class VisitsService {
     };
   }
 
-  async remove(id: number) {
+  async remove(id: number, currentUser: User) {
     this.logger.log(`Removing visit with ID: ${id}`);
 
     const visit = await this.visitRepository.findOne({ where: { id } });
     if (!visit) throw new VisitNotFoundException(id);
+
+    this.accessScopeService.assertCanModify(visit, currentUser, RESOURCE_LABEL);
 
     await this.visitRepository.delete(id);
 

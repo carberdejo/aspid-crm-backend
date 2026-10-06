@@ -100,6 +100,26 @@ export class AccessScopeService {
   }
 
   /**
+   * Revalida dueño y área cuando una edición los cambia.
+   * Devuelve el dueño efectivo, o undefined si la edición no toca ninguno de los dos.
+   * Debe llamarse después de assertCanModify.
+   */
+  async resolveOwnerOnUpdate(
+    currentUser: User,
+    resource: OwnedResource,
+    changes: { userId?: number; departmentId?: number },
+  ): Promise<number | undefined> {
+    if (changes.userId === undefined && changes.departmentId === undefined)
+      return undefined;
+
+    return this.resolveOwner(
+      currentUser,
+      Number(changes.departmentId ?? resource.departmentId),
+      Number(changes.userId ?? resource.userId),
+    );
+  }
+
+  /**
    * Restringe un listado al alcance del usuario. No hace nada si es admin.
    * Para un user: (dueño OR lector) AND área ∈ sus áreas.
    */
