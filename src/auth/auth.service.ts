@@ -204,7 +204,14 @@ export class AuthService {
     };
   }
 
-  async profile(codUser: string) {
+  async profile(codUser: string, currentUser: User) {
+    // Un usuario sin rol admin solo puede consultar su propio perfil y sesiones
+    if (
+      (currentUser.role as Role) !== Role.ADMIN &&
+      currentUser.codUser !== codUser
+    )
+      throw new ForbiddenException('No tienes permisos para ver este perfil');
+
     const user = await this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.userDepartments', 'userDept')

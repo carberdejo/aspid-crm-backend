@@ -15,6 +15,7 @@ import { Role, UserDetailResponseDto } from './interfaces';
 import { Auth } from 'src/auth/decorators';
 import { UpdateUserDto } from './dto/update-user.dto';
 
+@Auth(Role.ADMIN) // Gestión de usuarios: exclusiva del administrador
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -25,7 +26,6 @@ export class UsersController {
   }
 
   @Get()
-  @Auth(Role.ADMIN)
   findAll(@Query() paginationDto: QueryUserDto) {
     return this.usersService.findAll(paginationDto);
   }

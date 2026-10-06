@@ -1,14 +1,13 @@
-import { applyDecorators, UseGuards } from '@nestjs/common';
+import { applyDecorators } from '@nestjs/common';
 import { ApiBearerAuth, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { RoleProtected } from './role-protected.decorator';
-import { AuthGuard } from '@nestjs/passport';
-import { UserRoleGuard } from '../guards/user-role.guard';
 import { Role } from 'src/users/interfaces';
 
+// JwtAuthGuard y UserRoleGuard están registrados como APP_GUARD (ver AuthModule),
+// por lo que este decorador solo declara los roles requeridos y la documentación Swagger.
 export function Auth(...roles: Role[]) {
   return applyDecorators(
     RoleProtected(...roles),
-    UseGuards(AuthGuard('jwt'), UserRoleGuard),
     ApiBearerAuth('access-token'),
     ApiUnauthorizedResponse({
       description: 'No autorizado - Token inválido o expirado',

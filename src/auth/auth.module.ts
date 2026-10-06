@@ -8,6 +8,9 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UserSession } from 'src/users/entities';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { UserRoleGuard } from './guards/user-role.guard';
 
 @Module({
   imports: [
@@ -26,7 +29,14 @@ import { UserSession } from 'src/users/entities';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    // Seguro por defecto: todo endpoint exige JWT salvo los marcados con @Public().
+    // El orden importa: primero se autentica y luego se validan los roles.
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: UserRoleGuard },
+  ],
   exports: [JwtStrategy, PassportModule, JwtModule],
 })
 export class AuthModule {}

@@ -44,6 +44,8 @@ async function bootstrap() {
       },
       'access-token',
     )
+    // Todos los endpoints exigen JWT por defecto (guard global en AuthModule)
+    .addSecurityRequirements('access-token')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

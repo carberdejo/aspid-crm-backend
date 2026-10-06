@@ -2,7 +2,10 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { QuoteMetricsQueryDto } from './dto/quote-metrics-query.dto';
 import { VisitMetricsQueryDto } from './dto/visit-metrics-query.dto';
+import { Auth } from 'src/auth/decorators';
+import { Role } from 'src/users/interfaces';
 
+@Auth(Role.ADMIN) // Métricas de negocio: exclusivas de la gerencia
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}

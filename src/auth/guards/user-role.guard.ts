@@ -1,12 +1,11 @@
 import {
-  BadRequestException,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
   Injectable,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Observable } from 'rxjs';
 import { META_ROLES } from 'src/auth/decorators/role-protected.decorator';
 import { User } from 'src/users/entities';
 import { Role } from 'src/users/interfaces';
@@ -15,33 +14,23 @@ import { Role } from 'src/users/interfaces';
 export class UserRoleGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
-  canActivate(
-    context: ExecutionContext,
-  ): boolean | Promise<boolean> | Observable<boolean> {
-    const requiredRoles = this.reflector.get<Role[]>(
-      META_ROLES,
+  canActivate(context: ExecutionContext): boolean {
+    // Los roles del método tienen prioridad sobre los declarados en el controlador
+    const requiredRoles = this.reflector.getAllAndOverride<Role[]>(META_ROLES, [
       context.getHandler(),
-    );
+      context.getClass(),
+    ]);
 
-    // Si no hay roles requeridos, deja pasar
-    if (!requiredRoles) return true;
-    //Si el arreglo de roles está vacío, deja pasar
-    if (requiredRoles.length === 0) return true;
+    // Si no hay roles requeridos (o el arreglo está vacío), deja pasar
+    if (!requiredRoles || requiredRoles.length === 0) return true;
 
-    // Obtén el usuario del request
     const req = context.switchToHttp().getRequest<Express.Request>();
-    const user = req.user as User;
+    const user = req.user as User | undefined;
 
-    // Verifica si el usuario tiene alguno de los roles requeridos
-    if (!user) throw new BadRequestException('User not found in request');
+    if (!user) throw new UnauthorizedException('User not found in request');
 
-    console.log(user.role);
-
-    for (const role of requiredRoles) {
-      if (user.role.includes(role)) {
-        return true;
-      }
-    }
+    // Comparación exacta: evita que 'superadmin' coincida con 'admin'
+    if (requiredRoles.includes(user.role as Role)) return true;
 
     throw new ForbiddenException(
       'user does not have the required roles: ' + requiredRoles.join(', '),
