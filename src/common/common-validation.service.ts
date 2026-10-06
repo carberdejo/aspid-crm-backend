@@ -119,7 +119,8 @@ export class CommonValidationService {
         `La cotización con ID ${quoteId} ya está aprobada. Estado actual: ${quote.status}`,
       );
     }
-    return true;
+    // Devolvemos la cotización para que el llamador valide permisos sin otra consulta
+    return quote;
   }
 
   async validatePurchaseOrder(orderId: number) {

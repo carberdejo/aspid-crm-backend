@@ -9,23 +9,33 @@ import { BillingStatus } from 'src/orders/interfaces/billing-status.enum';
 import { InvoiceNotFoundException } from './exceptions/invoice.exceptions';
 import { QueryInvoiceDto } from './dto/query-invoice.dto';
 import { InvoiceMapper } from './mappers/invoice.mapper';
+import { AccessScopeService } from 'src/common/access/access-scope.service';
+import { User } from 'src/users/entities';
 
+// Una factura no tiene dueño ni área propios: los hereda de OC → cotización
 @Injectable()
 export class InvoicesService {
   constructor(
     @InjectRepository(Invoice)
     private readonly invoiceRepository: Repository<Invoice>,
     private readonly commonValidationService: CommonValidationService,
+    private readonly accessScopeService: AccessScopeService,
     private dataSource: DataSource, // Para manejar la transacción
   ) {}
-  async create(createInvoiceDto: CreateInvoiceDto) {
+  async create(createInvoiceDto: CreateInvoiceDto, currentUser: User) {
     const { orderId, amount, invoiceNumber, issueDate, currency } =
       createInvoiceDto;
     const order =
       await this.commonValidationService.validatePurchaseOrder(orderId);
 
+    // Facturar modifica la OC: solo el dueño de la cotización o un admin
+    this.accessScopeService.assertCanModify(
+      { ...order.quote, id: order.id },
+      currentUser,
+      'la orden de compra',
+    );
+
     const totalAmount = order.amount;
-    console.log({ totalAmount });
     const previousInvoices = await this.invoiceRepository.find({
       where: { orderId },
     });
@@ -33,7 +43,6 @@ export class InvoicesService {
       (sum, inv) => sum + Number(inv.amount),
       0,
     );
-    console.log({ alreadyInvoiced });
     const newTotal = alreadyInvoiced + amount;
     if (newTotal > totalAmount) {
       throw new BadRequestException(
@@ -63,7 +72,7 @@ export class InvoicesService {
       }
 
       await queryRunner.manager.update(PurchaseOrder, orderId, {
-        billingStatus: newStatus as BillingStatus,
+        billingStatus: newStatus,
       });
 
       await queryRunner.commitTransaction();
@@ -78,7 +87,7 @@ export class InvoicesService {
     }
   }
 
-  async findAll(queryDto: QueryInvoiceDto) {
+  async findAll(queryDto: QueryInvoiceDto, currentUser: User) {
     const {
       limit = 10,
       offset = 0,
@@ -109,6 +118,12 @@ export class InvoicesService {
         'client.businessName',
         'client.ruc',
       ]);
+
+    // Alcance obligatorio a través de la cotización: un user ve las facturas de sus
+    // cotizaciones (o donde es colaborador) en sus áreas; admin ve todo
+    this.accessScopeService.applyScope(queryBuilder, 'quote', currentUser, {
+      readerFields: ['collaboratorId'],
+    });
 
     if (term) {
       queryBuilder.andWhere(
@@ -154,21 +169,40 @@ export class InvoicesService {
     };
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, currentUser: User) {
+    // La OC no tiene relación directa con el cliente: se llega a él por la cotización
     const queryBuilder = this.invoiceRepository
       .createQueryBuilder('invoice')
-      .leftJoinAndSelect('invoice.order', 'order')
-      .leftJoinAndSelect('order.client', 'client')
+      .leftJoin('invoice.order', 'order')
+      .leftJoin('order.quote', 'quote')
+      .leftJoin('quote.client', 'client')
       .select([
         'invoice.id',
         'invoice.invoiceNumber',
         'invoice.amount',
+        'invoice.currency',
         'invoice.issueDate',
+        'order.id',
         'order.poNumber',
+        'quote.id',
+        'quote.quoteNumber',
+        'quote.userId',
+        'quote.departmentId',
+        'quote.collaboratorId',
+        'client.id',
+        'client.businessName',
+        'client.ruc',
       ])
       .where('invoice.id = :id', { id });
     const invoice = await queryBuilder.getOne();
     if (!invoice) throw new InvoiceNotFoundException(id);
+
+    this.accessScopeService.assertCanRead(
+      { ...invoice.order.quote, id: invoice.id },
+      currentUser,
+      'la factura',
+      [invoice.order.quote.collaboratorId],
+    );
 
     return invoice;
   }

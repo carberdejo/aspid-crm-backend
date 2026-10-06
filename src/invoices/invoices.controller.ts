@@ -2,24 +2,29 @@ import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { QueryInvoiceDto } from './dto/query-invoice.dto';
+import { CurrentUser } from 'src/auth/decorators';
+import { User } from 'src/users/entities';
 
 @Controller('invoices')
 export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
 
   @Post()
-  create(@Body() createInvoiceDto: CreateInvoiceDto) {
-    return this.invoicesService.create(createInvoiceDto);
+  create(
+    @Body() createInvoiceDto: CreateInvoiceDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.invoicesService.create(createInvoiceDto, user);
   }
 
   @Get()
-  findAll(@Query() query: QueryInvoiceDto) {
-    return this.invoicesService.findAll(query);
+  findAll(@Query() query: QueryInvoiceDto, @CurrentUser() user: User) {
+    return this.invoicesService.findAll(query, user);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.invoicesService.findOne(+id);
+  findOne(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.invoicesService.findOne(+id, user);
   }
 
   // @Patch(':id')
