@@ -22,8 +22,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: JwtPayload) {
     const { sub } = payload;
-    const user = await this.userRepository.findOneBy({
-      id: sub,
+    // Cargamos las áreas desde la BD (no desde el JWT) para que un cambio de
+    // asignación aplique de inmediato en las reglas de alcance (AccessScopeService)
+    const user = await this.userRepository.findOne({
+      where: { id: sub },
+      relations: { userDepartments: { department: true } },
     });
 
     if (!user) throw new UnauthorizedException('Token not valid');

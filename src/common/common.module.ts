@@ -6,11 +6,12 @@ import { CommonValidationService } from './common-validation.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PurchaseOrder } from 'src/orders/entities/order.entity';
 import { Quote } from 'src/quotes/entities/quote.entity';
-import { User } from 'src/users/entities';
+import { User, UserDepartment } from 'src/users/entities';
 import { Client, ContactClient } from 'src/clients/entities';
 import { Department } from 'src/departments/entities/department.entity';
 import { Visit } from 'src/visits/entities/visit.entity';
 import { ExchangeRateService } from './exchange-rate.service';
+import { AccessScopeService } from './access/access-scope.service';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ExchangeRateService } from './exchange-rate.service';
       PurchaseOrder,
       Quote,
       User,
+      UserDepartment,
       Client,
       ContactClient,
       Department,
@@ -30,6 +32,7 @@ import { ExchangeRateService } from './exchange-rate.service';
     AppLoggerService,
     CommonValidationService,
     ExchangeRateService,
+    AccessScopeService,
   ],
   exports: [
     TransformResponseInterceptor,
@@ -37,6 +40,7 @@ import { ExchangeRateService } from './exchange-rate.service';
     AppLoggerService,
     CommonValidationService,
     ExchangeRateService,
+    AccessScopeService,
   ],
 })
 export class CommonModule {}

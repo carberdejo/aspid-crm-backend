@@ -98,8 +98,9 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 | 100-109 | **Invoices** | 5 | InvoiceNotFoundException, InvoiceNumberAlreadyExistsException, InvoiceAmountExceedsOrderException, InvoiceDataInvalidException, InvoiceCreationFailedException |
 | 110-119 | **Orders** | 5 | PurchaseOrderNotFoundException, QuoteNotApprovedException, PoNumberAlreadyExistsException, OrderDataInvalidException, OrderCreationFailedException |
 | 120-129 | **Portfolios** | 7 | PortfolioCodeAlreadyExistsException, PortfolioNotFoundException, PortfolioAlreadyDeactivatedException, PortfolioAlreadyActivatedException, EmptyPortfolioUsersException, PortfolioDataInvalidException, PortfolioUpdateFailedException |
+| 130-139 | **Access** | 3 | DepartmentAccessDeniedException, ResourceOwnershipException, TargetUserNotInDepartmentException |
 
-**Total: 57 custom exceptions refactorizadas**
+**Total: 60 custom exceptions refactorizadas**
 
 ---
 
@@ -368,6 +369,17 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 - Zona max 50: `@MaxLength(50)`
 - Usuarios es array: `@IsArray()`
 - Usuarios mínimo: `@ArrayMinSize(1)`
+
+### 13. ACCESS (130-139)
+**Archivo:** `src/common/access/access.exceptions.ts`
+
+| Código | Nombre | HTTP | Descripción |
+|--------|--------|------|-------------|
+| 130 | `DepartmentAccessDeniedException` | 403 | El usuario no pertenece al área (REUTILIZABLE) |
+| 131 | `ResourceOwnershipException` | 403 | El registro no pertenece al usuario (REUTILIZABLE) |
+| 132 | `TargetUserNotInDepartmentException` | 400 | El admin registra a nombre de un usuario inactivo o fuera del área |
+
+**Las lanza:** `AccessScopeService` (`src/common/access/access-scope.service.ts`), compartido por visits, quotes, orders, invoices y deliverys.
 
 ---
 
