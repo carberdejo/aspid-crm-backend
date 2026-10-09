@@ -10,7 +10,10 @@ import { Client, ContactClient } from 'src/clients/entities';
 import { Department } from 'src/departments/entities/department.entity';
 import { PurchaseOrder } from 'src/orders/entities/order.entity';
 import { Quote } from 'src/quotes/entities/quote.entity';
-import { QuoteNotFoundException } from 'src/quotes/exceptions/quote.exceptions';
+import {
+  QuoteInvalidStatusTransitionException,
+  QuoteNotFoundException,
+} from 'src/quotes/exceptions/quote.exceptions';
 import { QuoteStatus } from 'src/quotes/interfaces/quote-status.enum';
 import { User } from 'src/users/entities';
 import { Repository } from 'typeorm';
@@ -108,15 +111,17 @@ export class CommonValidationService {
     return quote;
   }
 
-  //? Metodo específico para validar que la cotización no esté aprobada antes de crear una OC o una Factura
+  //? Valida que la cotización pueda convertirse en OC: solo desde PENDIENTE
+  //? (una APROBADO ya tiene OC y una RECHAZADO quedó descartada)
   async validateQuoteAprobed(quoteId: number) {
     const quote = await this.findQuoteById(quoteId);
-    if ((quote.status as QuoteStatus) === QuoteStatus.APROBADO) {
+    if ((quote.status as QuoteStatus) !== QuoteStatus.PENDIENTE) {
       this.logger.log(
-        `La cotización con ID ${quoteId} ya está aprobada. Estado actual: ${quote.status}`,
+        `La cotización con ID ${quoteId} no puede generar una OC. Estado actual: ${quote.status}`,
       );
-      throw new BadRequestException(
-        `La cotización con ID ${quoteId} ya está aprobada. Estado actual: ${quote.status}`,
+      throw new QuoteInvalidStatusTransitionException(
+        quote.status,
+        QuoteStatus.APROBADO,
       );
     }
     // Devolvemos la cotización para que el llamador valide permisos sin otra consulta
