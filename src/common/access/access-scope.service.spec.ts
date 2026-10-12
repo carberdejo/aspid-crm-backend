@@ -183,6 +183,19 @@ describe('AccessScopeService', () => {
 
       expect(qb.andWhere).toHaveBeenCalledWith('1 = 0');
     });
+
+    it('should include records without department when requested', () => {
+      const qb = buildQueryBuilder();
+
+      service.applyScope(qb, 'delivery', employee, {
+        includeWithoutDepartment: true,
+      });
+
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '(delivery.departmentId IN (:...scopeDepartmentIds) OR delivery.departmentId IS NULL)',
+        { scopeDepartmentIds: [1, 3] },
+      );
+    });
   });
 
   describe('assertCanRead / assertCanModify', () => {

@@ -23,6 +23,11 @@ export interface ScopeOptions {
   departmentField?: string;
   /** Columnas adicionales que dan acceso de lectura (p. ej. 'collaboratorId') */
   readerFields?: string[];
+  /**
+   * Incluir también los registros sin área (NULL), que solo dependen del dueño.
+   * Coherente con assertCanRead (p. ej. entregas anteriores a la columna department_id).
+   */
+  includeWithoutDepartment?: boolean;
 }
 
 /**
@@ -135,6 +140,7 @@ export class AccessScopeService {
       userField = 'userId',
       departmentField = 'departmentId',
       readerFields = [],
+      includeWithoutDepartment = false,
     } = options;
     const departmentIds = this.getDepartmentIds(currentUser);
 
@@ -145,11 +151,13 @@ export class AccessScopeService {
       .map((field) => `${alias}.${field} = :scopeUserId`)
       .join(' OR ');
 
+    const departmentCondition = includeWithoutDepartment
+      ? `(${alias}.${departmentField} IN (:...scopeDepartmentIds) OR ${alias}.${departmentField} IS NULL)`
+      : `${alias}.${departmentField} IN (:...scopeDepartmentIds)`;
+
     return queryBuilder
       .andWhere(`(${ownerCondition})`, { scopeUserId: Number(currentUser.id) })
-      .andWhere(`${alias}.${departmentField} IN (:...scopeDepartmentIds)`, {
-        scopeDepartmentIds: departmentIds,
-      });
+      .andWhere(departmentCondition, { scopeDepartmentIds: departmentIds });
   }
 
   /**

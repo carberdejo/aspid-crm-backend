@@ -1,5 +1,6 @@
 import { Client } from 'src/clients/entities';
 import { User } from 'src/users/entities';
+import { Department } from 'src/departments/entities/department.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -18,7 +19,7 @@ export class Delivery {
 
   // Relación con Cliente (Opcional, según tu SQL: NULL)
   @Column({ name: 'client_id', type: 'bigint', nullable: true })
-  clientId: number;
+  clientId: number | null;
 
   @ManyToOne(() => Client, { nullable: true })
   @JoinColumn({ name: 'client_id' })
@@ -31,6 +32,15 @@ export class Delivery {
   @ManyToOne(() => User)
   @JoinColumn({ name: 'user_id' })
   user: User;
+
+  // Área en la que se hizo la entrega (migración AddDepartmentToDeliveries).
+  // NULL solo en entregas antiguas que no se pudieron asignar automáticamente.
+  @Column({ name: 'department_id', type: 'bigint', nullable: true })
+  departmentId: number | null;
+
+  @ManyToOne(() => Department, { nullable: true })
+  @JoinColumn({ name: 'department_id' })
+  department: Department;
 
   @Column({
     name: 'delivery_date',
