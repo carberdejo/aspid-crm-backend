@@ -217,7 +217,7 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 
 | Código | Nombre | HTTP | Descripción |
 |--------|--------|------|-------------|
-| 60 | `InvalidDateRangeException` | 400 | Fecha inicio >= fin |
+| 60 | `InvalidDateRangeException` | 400 | Fecha inicio > fin |
 | 61 | `NoDataAvailableForMetricsException` | 200 | Sin datos disponibles |
 | 62 | `InvalidMetricsParametersException` | 400 | Parámetros inválidos |
 

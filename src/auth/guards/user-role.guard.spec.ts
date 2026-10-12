@@ -67,10 +67,15 @@ describe('UserRoleGuard', () => {
     });
   });
 
-  describe('analytics (solo admin)', () => {
-    it('should forbid role user', () => {
-      expectForbidden(AnalyticsController, 'getQuotesSummary', Role.USER);
-      expectForbidden(AnalyticsController, 'getVisitsSummary', Role.USER);
+  // El alcance (solo sus métricas y áreas) lo aplica AnalyticsService
+  describe('analytics (admin y user)', () => {
+    it('should allow role user', () => {
+      expectAllowed(AnalyticsController, 'getQuotesSummary', Role.USER);
+      expectAllowed(AnalyticsController, 'getVisitsSummary', Role.USER);
+    });
+
+    it('should forbid unknown roles', () => {
+      expectForbidden(AnalyticsController, 'getQuotesSummary', 'superadmin');
     });
 
     it('should allow role admin', () => {
