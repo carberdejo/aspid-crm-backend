@@ -16,6 +16,7 @@ import {
 } from './exceptions/quote.exceptions';
 import { ExchangeRateService } from 'src/common/exchange-rate.service';
 import { AccessScopeService } from 'src/common/access/access-scope.service';
+import { ClientAccessService } from 'src/common/access/client-access.service';
 import { User } from 'src/users/entities';
 
 const RESOURCE_LABEL = 'la cotización';
@@ -29,6 +30,7 @@ export class QuotesService {
     private readonly commonValidationService: CommonValidationService,
     private readonly exchangeRateService: ExchangeRateService,
     private readonly accessScopeService: AccessScopeService,
+    private readonly clientAccessService: ClientAccessService,
   ) {}
   async create(createQuoteDto: CreateQuoteDto, currentUser: User) {
     this.logger.log('Creating new quote...');
@@ -40,10 +42,11 @@ export class QuotesService {
       createQuoteDto.departmentId,
       createQuoteDto.userId,
     );
-    // Validar que el cliente exista
+    // Validar que el cliente exista y que el usuario tenga acceso a él
     const client = await this.commonValidationService.findClientById(
       createQuoteDto.clientId,
     );
+    await this.clientAccessService.assertCanAccessClient(currentUser, client);
     // Validar que el contacto exista
     const contact = await this.commonValidationService.findContactClientById(
       createQuoteDto.contactId,
@@ -239,9 +242,10 @@ export class QuotesService {
 
     // 2. Validaciones de integridad si se envían IDs nuevos
     if (updateQuoteDto.clientId) {
-      await this.commonValidationService.findClientById(
+      const client = await this.commonValidationService.findClientById(
         updateQuoteDto.clientId,
       );
+      await this.clientAccessService.assertCanAccessClient(currentUser, client);
     }
     if (updateQuoteDto.contactId) {
       const contact = await this.commonValidationService.findContactClientById(

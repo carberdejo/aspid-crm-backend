@@ -43,3 +43,32 @@ export class TargetUserNotInDepartmentException extends ApiException {
     );
   }
 }
+
+/**
+ * El usuario intenta operar con un cliente fuera de sus carteras
+ * y sin una excepción de acceso activa
+ */
+export class ClientAccessDeniedException extends ApiException {
+  constructor(clientId: number) {
+    super(
+      133,
+      `No tienes acceso al cliente con ID ${clientId}`,
+      undefined,
+      HttpStatus.FORBIDDEN,
+    );
+  }
+}
+
+/**
+ * El usuario intenta usar una cartera a la que no está asignado
+ */
+export class PortfolioNotAssignedException extends ApiException {
+  constructor(portfolioId: number) {
+    super(
+      134,
+      `No perteneces a la cartera con ID ${portfolioId}`,
+      undefined,
+      HttpStatus.FORBIDDEN,
+    );
+  }
+}

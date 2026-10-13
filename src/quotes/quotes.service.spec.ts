@@ -7,6 +7,8 @@ import { QuoteStatus } from './interfaces/quote-status.enum';
 import { CommonValidationService } from 'src/common/common-validation.service';
 import { ExchangeRateService } from 'src/common/exchange-rate.service';
 import { AccessScopeService } from 'src/common/access/access-scope.service';
+import { ClientAccessService } from 'src/common/access/client-access.service';
+import { ClientAccessDeniedException } from 'src/common/access/access.exceptions';
 import {
   DepartmentAccessDeniedException,
   ResourceOwnershipException,
@@ -113,11 +115,15 @@ describe('QuotesService', () => {
     createdAt: new Date('2026-10-01'),
   };
 
+  // El acceso a clientes tiene su propio spec: aquí solo importa que se consulte
+  const mockClientAccessService = { assertCanAccessClient: jest.fn() };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         QuotesService,
         AccessScopeService,
+        { provide: ClientAccessService, useValue: mockClientAccessService },
         { provide: getRepositoryToken(Quote), useValue: mockQuoteRepository },
         {
           provide: getRepositoryToken(UserDepartment),
@@ -145,6 +151,19 @@ describe('QuotesService', () => {
   });
 
   describe('create', () => {
+    it('should reject a client outside the user portfolios', async () => {
+      // ARRANGE
+      mockClientAccessService.assertCanAccessClient.mockRejectedValueOnce(
+        new ClientAccessDeniedException(7),
+      );
+
+      // ACT & ASSERT
+      await expect(service.create(createQuoteDto, employee)).rejects.toThrow(
+        ClientAccessDeniedException,
+      );
+      expect(mockQuoteRepository.save).not.toHaveBeenCalled();
+    });
+
     it('should register the quote for the authenticated user ignoring the userId sent', async () => {
       // ACT: el empleado intenta registrar la cotización a nombre del usuario 99
       const result = await service.create(

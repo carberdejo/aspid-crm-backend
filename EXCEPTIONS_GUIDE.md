@@ -98,7 +98,7 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 | 100-109 | **Invoices** | 5 | InvoiceNotFoundException, InvoiceNumberAlreadyExistsException, InvoiceAmountExceedsOrderException, InvoiceDataInvalidException, InvoiceCreationFailedException |
 | 110-119 | **Orders** | 5 | PurchaseOrderNotFoundException, QuoteNotApprovedException, PoNumberAlreadyExistsException, OrderDataInvalidException, OrderCreationFailedException |
 | 120-129 | **Portfolios** | 7 | PortfolioCodeAlreadyExistsException, PortfolioNotFoundException, PortfolioAlreadyDeactivatedException, PortfolioAlreadyActivatedException, EmptyPortfolioUsersException, PortfolioDataInvalidException, PortfolioUpdateFailedException |
-| 130-139 | **Access** | 3 | DepartmentAccessDeniedException, ResourceOwnershipException, TargetUserNotInDepartmentException |
+| 130-139 | **Access** | 5 | DepartmentAccessDeniedException, ResourceOwnershipException, TargetUserNotInDepartmentException, ClientAccessDeniedException, PortfolioNotAssignedException |
 
 **Total: 60 custom exceptions refactorizadas**
 
@@ -378,8 +378,10 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 | 130 | `DepartmentAccessDeniedException` | 403 | El usuario no pertenece al área (REUTILIZABLE) |
 | 131 | `ResourceOwnershipException` | 403 | El registro no pertenece al usuario (REUTILIZABLE) |
 | 132 | `TargetUserNotInDepartmentException` | 400 | El admin registra a nombre de un usuario inactivo o fuera del área |
+| 133 | `ClientAccessDeniedException` | 403 | El cliente no está en las carteras del usuario ni tiene una excepción de acceso activa |
+| 134 | `PortfolioNotAssignedException` | 403 | El usuario no está asignado a la cartera |
 
-**Las lanza:** `AccessScopeService` (`src/common/access/access-scope.service.ts`), compartido por visits, quotes, orders, invoices y deliverys.
+**Las lanza:** `AccessScopeService` (130-132, `src/common/access/access-scope.service.ts`), compartido por visits, quotes, orders, invoices y deliverys; y `ClientAccessService` (133-134, `src/common/access/client-access.service.ts`), compartido por clients, portfolios, visits, quotes y deliverys.
 
 ---
 

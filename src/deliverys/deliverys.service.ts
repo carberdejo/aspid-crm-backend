@@ -7,6 +7,7 @@ import { Delivery } from './entities/delivery.entity';
 import { Brackets, DeepPartial, Repository } from 'typeorm';
 import { CommonValidationService } from 'src/common/common-validation.service';
 import { AccessScopeService } from 'src/common/access/access-scope.service';
+import { ClientAccessService } from 'src/common/access/client-access.service';
 import { User } from 'src/users/entities';
 import { DeliveryNotFoundException } from './exceptions/delivery.exceptions';
 
@@ -21,6 +22,7 @@ export class DeliverysService {
     private readonly deliveryRepository: Repository<Delivery>,
     private readonly validationService: CommonValidationService,
     private readonly accessScopeService: AccessScopeService,
+    private readonly clientAccessService: ClientAccessService,
   ) {}
 
   async create(createDeliveryDto: CreateDeliveryDto, currentUser: User) {
@@ -33,7 +35,10 @@ export class DeliverysService {
 
     // El cliente es opcional: 0 o ausente se guarda como NULL
     const clientId = createDeliveryDto.clientId || null;
-    if (clientId) await this.validationService.findClientById(clientId);
+    if (clientId) {
+      const client = await this.validationService.findClientById(clientId);
+      await this.clientAccessService.assertCanAccessClient(currentUser, client);
+    }
 
     const delivery = this.deliveryRepository.create({
       ...createDeliveryDto,
@@ -182,8 +187,15 @@ export class DeliverysService {
     if (ownerId !== undefined) changes.userId = ownerId;
     if (updateDeliveryDto.clientId !== undefined) {
       changes.clientId = updateDeliveryDto.clientId || null;
-      if (changes.clientId)
-        await this.validationService.findClientById(changes.clientId);
+      if (changes.clientId) {
+        const client = await this.validationService.findClientById(
+          changes.clientId,
+        );
+        await this.clientAccessService.assertCanAccessClient(
+          currentUser,
+          client,
+        );
+      }
     }
 
     await this.deliveryRepository.save(

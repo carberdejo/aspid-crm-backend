@@ -5,6 +5,8 @@ import { Delivery } from './entities/delivery.entity';
 import { DeliveryNotFoundException } from './exceptions/delivery.exceptions';
 import { CommonValidationService } from 'src/common/common-validation.service';
 import { AccessScopeService } from 'src/common/access/access-scope.service';
+import { ClientAccessService } from 'src/common/access/client-access.service';
+import { ClientAccessDeniedException } from 'src/common/access/access.exceptions';
 import {
   DepartmentAccessDeniedException,
   ResourceOwnershipException,
@@ -75,11 +77,15 @@ describe('DeliverysService', () => {
 
   const mockValidationService = { findClientById: jest.fn() };
 
+  // El acceso a clientes tiene su propio spec: aquí solo importa que se consulte
+  const mockClientAccessService = { assertCanAccessClient: jest.fn() };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DeliverysService,
         AccessScopeService,
+        { provide: ClientAccessService, useValue: mockClientAccessService },
         {
           provide: getRepositoryToken(Delivery),
           useValue: mockDeliveryRepository,
@@ -97,6 +103,19 @@ describe('DeliverysService', () => {
   });
 
   describe('create', () => {
+    it('should reject a client outside the user portfolios', async () => {
+      // ARRANGE
+      mockClientAccessService.assertCanAccessClient.mockRejectedValueOnce(
+        new ClientAccessDeniedException(7),
+      );
+
+      // ACT & ASSERT
+      await expect(
+        service.create({ departmentId: 3, clientId: 7 }, employee),
+      ).rejects.toThrow(ClientAccessDeniedException);
+      expect(mockDeliveryRepository.save).not.toHaveBeenCalled();
+    });
+
     it('should register the delivery for the authenticated user in their department', async () => {
       // ACT: el empleado intenta registrar a nombre del usuario 99
       const result = await service.create(

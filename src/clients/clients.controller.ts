@@ -48,8 +48,8 @@ export class ClientsController {
   @ApiForbiddenResponse({
     description: 'No tienes permisos para realizar esta acción',
   })
-  create(@Body() createClientDto: CreateClientDto) {
-    return this.clientsService.create(createClientDto);
+  create(@Body() createClientDto: CreateClientDto, @CurrentUser() user: User) {
+    return this.clientsService.create(createClientDto, user);
   }
 
   @Get()
@@ -94,7 +94,7 @@ export class ClientsController {
   }
 
   @Patch(':id')
-  @Auth(Role.USER, Role.ADMIN)
+  @Auth(Role.ADMIN) // Solo el admin edita clientes; los empleados solo los leen
   @ApiOperation({
     summary: 'Actualizar un cliente',
     description: 'Actualiza la información de un cliente existente',
@@ -133,8 +133,9 @@ export class ClientsController {
       new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST }),
     )
     id: number,
+    @CurrentUser() user: User,
   ) {
-    return this.clientsService.findOneContact(id);
+    return this.clientsService.findOneContact(id, user);
   }
 
   @Post('contacts')
@@ -155,8 +156,11 @@ export class ClientsController {
   @ApiForbiddenResponse({
     description: 'No tienes permisos para realizar esta acción',
   })
-  createContact(@Body() contactData: CreateContactClientDto) {
-    return this.clientsService.createContact(contactData);
+  createContact(
+    @Body() contactData: CreateContactClientDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.clientsService.createContact(contactData, user);
   }
 
   @Get(':id/contacts')
@@ -179,8 +183,9 @@ export class ClientsController {
       new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST }),
     )
     id: number,
+    @CurrentUser() user: User,
   ) {
-    return this.clientsService.findClientContacts(id);
+    return this.clientsService.findClientContacts(id, user);
   }
 
   @Get(':id')
@@ -194,11 +199,19 @@ export class ClientsController {
   @ApiForbiddenResponse({
     description: 'No tienes permisos para realizar esta acción',
   })
-  findOne(@Param('id') id: number) {
-    return this.clientsService.findByID(id);
+  findOne(
+    @Param(
+      'id',
+      new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST }),
+    )
+    id: number,
+    @CurrentUser() user: User,
+  ) {
+    return this.clientsService.findByID(id, user);
   }
 
   @Post('import-excel')
+  @Auth(Role.ADMIN) // Carga masiva: exclusiva del admin
   @UseInterceptors(FileInterceptor('file')) // 'file' será el nombre del campo en el FormData del frontend
   async importExcel(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
@@ -216,6 +229,7 @@ export class ClientsController {
   }
 
   @Post('export-excel')
+  @Auth(Role.ADMIN) // Exporta la base completa de clientes: exclusivo del admin
   @HttpCode(HttpStatus.OK)
   async exportExcel(@Res() res: Response, @Body() filters: QueryClientDto) {
     try {

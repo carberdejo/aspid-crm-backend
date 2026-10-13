@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -9,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, DataSource, Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { Client, ContactClient } from './entities';
 import { QueryClientDto } from './dto/query-client.dto';
 import { ApiException } from 'src/common/exceptions/api.exception';
@@ -21,7 +20,7 @@ import {
   ContactNotFoundException,
 } from './exceptions/client.exceptions';
 import { User } from 'src/users/entities';
-import { PortfolioUser } from 'src/portfolios/entities/portfolio-user.entity';
+import { ClientAccessService } from 'src/common/access/client-access.service';
 import * as xlsx from 'xlsx';
 import { Portfolio } from 'src/portfolios/entities/portfolio.entity';
 import { IndustrySegment } from 'src/catalogs/entities/industry-segment.entity';
@@ -35,14 +34,20 @@ export class ClientsService {
     @InjectRepository(ContactClient)
     private readonly contactClientRepository: Repository<ContactClient>,
     private readonly configService: ConfigService,
-    private readonly dataSource: DataSource,
     @InjectRepository(IndustrySegment)
     private readonly segmentRepository: Repository<IndustrySegment>,
     @InjectRepository(Portfolio)
     private readonly portfolioRepository: Repository<Portfolio>,
+    private readonly clientAccessService: ClientAccessService,
   ) {}
 
-  async create(createClientDto: CreateClientDto) {
+  async create(createClientDto: CreateClientDto, currentUser: User) {
+    // Un user solo puede crear clientes en sus carteras (si no, no podría verlos luego)
+    await this.clientAccessService.assertPortfolioAssigned(
+      currentUser,
+      createClientDto.portfolioId,
+    );
+
     const existingClient = await this.clientRepository.findOneBy({
       ruc: createClientDto.ruc,
     });
@@ -107,23 +112,18 @@ export class ClientsService {
       'client.contacts', // La relación definida en tu Entidad Client
     );
 
-    // 2. FILTRO DE SEGURIDAD INTERNO (Para usuarios no-admin)
-    // Usamos "Return Early" para despachar rápido si el usuario no tiene accesos
-    if (currentUser.role !== 'admin') {
-      const allowedIds = await this.getUserPortfolioIds(currentUser.id);
-
-      if (allowedIds.length === 0) return this.emptyResponse(limit, offset);
-      if (portfolioId && !allowedIds.includes(+portfolioId)) {
-        throw new ForbiddenException('No tienes permisos para esta cartera.');
-      }
-
-      // Si no filtró por una cartera específica, le inyectamos todas sus carteras permitidas
-      if (!portfolioId) {
-        queryBuilder.andWhere('client.portfolioId IN (:...allowedIds)', {
-          allowedIds,
-        });
-      }
-    }
+    // 2. FILTRO DE SEGURIDAD (no-admin): clientes de sus carteras + excepciones activas.
+    // Solo puede filtrar por una cartera a la que esté asignado
+    if (portfolioId)
+      await this.clientAccessService.assertPortfolioAssigned(
+        currentUser,
+        portfolioId,
+      );
+    this.clientAccessService.applyClientScope(
+      queryBuilder,
+      'client',
+      currentUser,
+    );
 
     // query
     if (term) {
@@ -161,11 +161,12 @@ export class ClientsService {
     };
   }
 
-  async createContact(contactData: CreateContactClientDto) {
+  async createContact(contactData: CreateContactClientDto, currentUser: User) {
     const client = await this.clientRepository.findOneBy({
       id: contactData.clientId,
     });
     if (!client) throw new ClientNotFoundException(contactData.clientId);
+    await this.clientAccessService.assertCanAccessClient(currentUser, client);
 
     const contact = this.contactClientRepository.create(contactData);
     const savedContact = await this.contactClientRepository.save(contact);
@@ -180,12 +181,13 @@ export class ClientsService {
     };
   }
 
-  async findClientContacts(clientId: number) {
+  async findClientContacts(clientId: number, currentUser: User) {
     this.logger.log(`Buscando contactos del cliente ID: ${clientId}`);
 
     const client = await this.clientRepository.findOneBy({ id: clientId });
 
     if (!client) throw new ClientNotFoundException(clientId);
+    await this.clientAccessService.assertCanAccessClient(currentUser, client);
 
     const contacts = await this.contactClientRepository.find({
       where: { clientId },
@@ -198,7 +200,7 @@ export class ClientsService {
     };
   }
 
-  async findOneContact(id: number) {
+  async findOneContact(id: number, currentUser: User) {
     this.logger.log(`Buscando contacto con ID: ${id}`);
 
     const contact = await this.contactClientRepository.findOne({
@@ -207,6 +209,10 @@ export class ClientsService {
     });
 
     if (!contact) throw new ContactNotFoundException(id);
+    await this.clientAccessService.assertCanAccessClient(
+      currentUser,
+      contact.client,
+    );
 
     return {
       message: 'Contacto obtenido exitosamente',
@@ -214,7 +220,7 @@ export class ClientsService {
     };
   }
 
-  async findByID(id: number) {
+  async findByID(id: number, currentUser: User) {
     this.logger.log(`Buscando cliente con ID: ${id}`);
 
     const client = await this.clientRepository
@@ -224,6 +230,7 @@ export class ClientsService {
       .getOne();
 
     if (!client) throw new ClientNotFoundException(id);
+    await this.clientAccessService.assertCanAccessClient(currentUser, client);
 
     return client;
   }
@@ -314,19 +321,6 @@ export class ClientsService {
         500,
       );
     }
-  }
-
-  private async getUserPortfolioIds(userId: number): Promise<number[]> {
-    const assignments = await this.dataSource
-      .getRepository(PortfolioUser)
-      .find({ where: { userId } });
-    return assignments.map((a) => Number(a.portfolioId));
-  }
-
-  private emptyResponse(limit: number, offset: number) {
-    return {
-      data: { items: [], total: 0, limit: +limit, offset: +offset },
-    };
   }
 
   //===============HELPERS================
@@ -512,68 +506,6 @@ export class ClientsService {
       throw new BadRequestException(
         'Error al procesar el archivo Excel. Verifica el formato.',
       );
-    }
-  }
-
-  async exportToExcel2(filter: QueryClientDto): Promise<Buffer> {
-    try {
-      // 1. Usamos QueryBuilder para aplicar los mismos filtros que en el GET /clients
-      const query = this.clientRepository
-        .createQueryBuilder('client')
-        .leftJoinAndSelect('client.segment', 'segment')
-        .leftJoinAndSelect('client.portfolio', 'portfolio')
-        .orderBy('client.id', 'ASC');
-
-      // Si el frontend envía un término de búsqueda, filtramos
-      if (filter.term) {
-        query.andWhere(
-          '(client.commercialName ILIKE :term OR client.businessName ILIKE :term OR client.ruc ILIKE :term)',
-          { term: `%${filter.term}%` },
-        );
-      }
-
-      if (filter.segmentId) {
-        query.andWhere('client.segmentId = :segmentId', {
-          segmentId: filter.segmentId,
-        });
-      }
-
-      if (filter.portfolioId) {
-        query.andWhere('client.portfolioId = :portfolioId', {
-          portfolioId: filter.portfolioId,
-        });
-      }
-
-      // getMany() trae todos los resultados que coincidan (sin paginación)
-      const clients = await query.getMany();
-
-      // 2. Mapeo exacto para la Plantilla Excel
-      const dataToExport = clients.map((client, index) => ({
-        ITEM: index + 1,
-        ANTERIO: 'N/C',
-        ACTUAL: client.portfolio?.code || '',
-        SEGMENTO: client.segment?.code || '',
-        'RAZON SOCIAL': client.businessName,
-        RUC: client.ruc,
-        'SECTOR P': '',
-        DIRECCION: client.address,
-        PROVINCIA: client.province || '',
-        'DISTRITO FISCAL': client.district || '',
-        ZONA: client.zone || '',
-      }));
-
-      // 3. Crear el Excel
-      const worksheet = xlsx.utils.json_to_sheet(dataToExport);
-      const workbook = xlsx.utils.book_new();
-      xlsx.utils.book_append_sheet(workbook, worksheet, 'CARTERA');
-
-      return xlsx.write(workbook, {
-        bookType: 'xlsx',
-        type: 'buffer',
-      }) as Buffer;
-    } catch (error) {
-      this.logger.error('Error exportando clientes a Excel', error);
-      throw new BadRequestException('No se pudo generar el archivo Excel');
     }
   }
 

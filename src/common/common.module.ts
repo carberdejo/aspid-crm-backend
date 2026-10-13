@@ -12,6 +12,9 @@ import { Department } from 'src/departments/entities/department.entity';
 import { Visit } from 'src/visits/entities/visit.entity';
 import { ExchangeRateService } from './exchange-rate.service';
 import { AccessScopeService } from './access/access-scope.service';
+import { ClientAccessService } from './access/client-access.service';
+import { PortfolioUser } from 'src/portfolios/entities/portfolio-user.entity';
+import { UserClientException } from 'src/clients/entities/user-client-exception.entity';
 
 @Module({
   imports: [
@@ -24,6 +27,8 @@ import { AccessScopeService } from './access/access-scope.service';
       ContactClient,
       Department,
       Visit,
+      PortfolioUser,
+      UserClientException,
     ]),
   ],
   providers: [
@@ -33,6 +38,7 @@ import { AccessScopeService } from './access/access-scope.service';
     CommonValidationService,
     ExchangeRateService,
     AccessScopeService,
+    ClientAccessService,
   ],
   exports: [
     TransformResponseInterceptor,
@@ -41,6 +47,7 @@ import { AccessScopeService } from './access/access-scope.service';
     CommonValidationService,
     ExchangeRateService,
     AccessScopeService,
+    ClientAccessService,
   ],
 })
 export class CommonModule {}

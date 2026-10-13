@@ -8,6 +8,7 @@ import { Visit } from './entities/visit.entity';
 
 import { CommonValidationService } from 'src/common/common-validation.service';
 import { AccessScopeService } from 'src/common/access/access-scope.service';
+import { ClientAccessService } from 'src/common/access/client-access.service';
 import { User } from 'src/users/entities';
 import {
   VisitNotFoundException,
@@ -26,6 +27,7 @@ export class VisitsService {
     private readonly visitRepository: Repository<Visit>,
     private readonly commonValidationService: CommonValidationService,
     private readonly accessScopeService: AccessScopeService,
+    private readonly clientAccessService: ClientAccessService,
   ) {}
 
   async create(createVisitDto: CreateVisitDto, currentUser: User) {
@@ -41,6 +43,7 @@ export class VisitsService {
     const client = await this.commonValidationService.findClientById(
       createVisitDto.clientId,
     );
+    await this.clientAccessService.assertCanAccessClient(currentUser, client);
 
     const contact = await this.commonValidationService.findContactClientById(
       createVisitDto.contactId,
@@ -165,11 +168,13 @@ export class VisitsService {
         ? updateVisitDto
         : { ...updateVisitDto, userId: ownerId };
 
-    // Si se está actualizando clientId, validar que exista
-    if (updateVisitDto.clientId)
-      await this.commonValidationService.findClientById(
+    // Si se está actualizando clientId, validar que exista y que el usuario tenga acceso
+    if (updateVisitDto.clientId) {
+      const client = await this.commonValidationService.findClientById(
         updateVisitDto.clientId,
       );
+      await this.clientAccessService.assertCanAccessClient(currentUser, client);
+    }
 
     // Si se está actualizando contactId, validar que exista y pertenezca al cliente
     if (updateVisitDto.contactId) {

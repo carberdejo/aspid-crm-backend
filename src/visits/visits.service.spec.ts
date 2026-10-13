@@ -4,6 +4,8 @@ import { VisitsService } from './visits.service';
 import { Visit } from './entities/visit.entity';
 import { CommonValidationService } from 'src/common/common-validation.service';
 import { AccessScopeService } from 'src/common/access/access-scope.service';
+import { ClientAccessService } from 'src/common/access/client-access.service';
+import { ClientAccessDeniedException } from 'src/common/access/access.exceptions';
 import {
   DepartmentAccessDeniedException,
   ResourceOwnershipException,
@@ -87,11 +89,15 @@ describe('VisitsService', () => {
     outcomeSummary: 'Cliente interesado',
   };
 
+  // El acceso a clientes tiene su propio spec: aquí solo importa que se consulte
+  const mockClientAccessService = { assertCanAccessClient: jest.fn() };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         VisitsService,
         AccessScopeService,
+        { provide: ClientAccessService, useValue: mockClientAccessService },
         { provide: getRepositoryToken(Visit), useValue: mockVisitRepository },
         {
           provide: getRepositoryToken(UserDepartment),
@@ -118,6 +124,19 @@ describe('VisitsService', () => {
   });
 
   describe('create', () => {
+    it('should reject a client outside the user portfolios', async () => {
+      // ARRANGE
+      mockClientAccessService.assertCanAccessClient.mockRejectedValueOnce(
+        new ClientAccessDeniedException(7),
+      );
+
+      // ACT & ASSERT
+      await expect(service.create(createVisitDto, employee)).rejects.toThrow(
+        ClientAccessDeniedException,
+      );
+      expect(mockVisitRepository.save).not.toHaveBeenCalled();
+    });
+
     it('should register the visit for the authenticated user ignoring the userId sent', async () => {
       // ARRANGE: el empleado intenta registrar la visita a nombre del usuario 99
       const dto = { ...createVisitDto, userId: 99 };

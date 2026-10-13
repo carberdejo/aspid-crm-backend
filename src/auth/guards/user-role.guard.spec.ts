@@ -17,9 +17,11 @@ import { UsersController } from 'src/users/users.controller';
 import { AnalyticsController } from 'src/analytics/analytics.controller';
 import { DepartmentsController } from 'src/departments/departments.controller';
 import { QuotesController } from 'src/quotes/quotes.controller';
+import { ClientsController } from 'src/clients/clients.controller';
+import { UserClientExceptionsController } from 'src/clients/user-client-exceptions.controller';
 import { User } from 'src/users/entities';
 
-type ControllerClass = { prototype: Record<string, unknown> };
+type ControllerClass = { prototype: object };
 
 // Construye un ExecutionContext apuntando al handler real del controlador,
 // de modo que el guard lea la metadata declarada con @Auth / @Public
@@ -29,7 +31,8 @@ const buildContext = (
   user?: Partial<User>,
 ): ExecutionContext =>
   ({
-    getHandler: () => controller.prototype[handler],
+    getHandler: () =>
+      (controller.prototype as Record<string, unknown>)[handler],
     getClass: () => controller,
     switchToHttp: () => ({ getRequest: () => ({ user }) }),
   }) as unknown as ExecutionContext;
@@ -81,6 +84,46 @@ describe('UserRoleGuard', () => {
     it('should allow role admin', () => {
       expectAllowed(AnalyticsController, 'getQuotesSummary', Role.ADMIN);
       expectAllowed(AnalyticsController, 'getVisitsSummary', Role.ADMIN);
+    });
+  });
+
+  describe('clients', () => {
+    it('should allow read and create endpoints to role user', () => {
+      [
+        'create',
+        'findAll',
+        'findOne',
+        'findClientContacts',
+        'createContact',
+      ].forEach((h) => expectAllowed(ClientsController, h, Role.USER));
+    });
+
+    it('should forbid edit, import and export to role user', () => {
+      ['update', 'importExcel', 'exportExcel'].forEach((h) =>
+        expectForbidden(ClientsController, h, Role.USER),
+      );
+    });
+
+    it('should allow edit, import and export to role admin', () => {
+      ['update', 'importExcel', 'exportExcel'].forEach((h) =>
+        expectAllowed(ClientsController, h, Role.ADMIN),
+      );
+    });
+  });
+
+  describe('user-client-exceptions (solo admin)', () => {
+    const handlers = ['create', 'findAllByUser', 'update', 'revokeAccess'];
+
+    it('should forbid every endpoint to role user', () => {
+      handlers.forEach((h) =>
+        expectForbidden(UserClientExceptionsController, h, Role.USER),
+      );
+    });
+
+    it('should allow every endpoint to role admin', () => {
+      handlers.forEach((h) =>
+        expectAllowed(UserClientExceptionsController, h, Role.ADMIN),
+      );
     });
   });
 
