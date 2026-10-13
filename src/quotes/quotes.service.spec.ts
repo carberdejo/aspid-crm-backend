@@ -116,7 +116,7 @@ describe('QuotesService', () => {
   };
 
   // El acceso a clientes tiene su propio spec: aquí solo importa que se consulte
-  const mockClientAccessService = { assertCanAccessClient: jest.fn() };
+  const mockClientAccessService = { assertOwnerCanAccessClient: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -153,7 +153,7 @@ describe('QuotesService', () => {
   describe('create', () => {
     it('should reject a client outside the user portfolios', async () => {
       // ARRANGE
-      mockClientAccessService.assertCanAccessClient.mockRejectedValueOnce(
+      mockClientAccessService.assertOwnerCanAccessClient.mockRejectedValueOnce(
         new ClientAccessDeniedException(7),
       );
 

@@ -15,6 +15,9 @@ import {
   PortfolioNotAssignedException,
 } from './access.exceptions';
 
+/** Lo mínimo de un usuario para decidir el acceso */
+export type UserRef = Pick<User, 'id' | 'role'>;
+
 /** Lo mínimo de un cliente para decidir el acceso */
 export interface ClientRef {
   id: number;
@@ -37,14 +40,16 @@ export class ClientAccessService {
     private readonly portfolioUserRepository: Repository<PortfolioUser>,
     @InjectRepository(UserClientException)
     private readonly clientExceptionRepository: Repository<UserClientException>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
-  private isAdmin(currentUser: User): boolean {
+  private isAdmin(currentUser: UserRef): boolean {
     return (currentUser.role as Role) === Role.ADMIN;
   }
 
   /** IDs de las carteras asignadas al usuario */
-  async getPortfolioIds(currentUser: User): Promise<number[]> {
+  async getPortfolioIds(currentUser: UserRef): Promise<number[]> {
     const assignments = await this.portfolioUserRepository.find({
       where: { userId: currentUser.id },
     });
@@ -89,7 +94,7 @@ export class ClientAccessService {
 
   /** true si el usuario puede ver y usar el cliente */
   async canAccessClient(
-    currentUser: User,
+    currentUser: UserRef,
     client: ClientRef,
   ): Promise<boolean> {
     if (this.isAdmin(currentUser)) return true;
@@ -114,6 +119,30 @@ export class ClientAccessService {
     client: ClientRef,
   ): Promise<void> {
     if (!(await this.canAccessClient(currentUser, client)))
+      throw new ClientAccessDeniedException(client.id);
+  }
+
+  /**
+   * Valida el cliente contra el dueño efectivo de un registro (visita, cotización, entrega).
+   *
+   * - Si el dueño es quien hace la petición, equivale a assertCanAccessClient.
+   * - Si un admin registra a nombre de otro usuario, se valida el acceso de ese usuario:
+   *   no puede asignarle un cliente fuera de sus carteras o excepciones activas.
+   */
+  async assertOwnerCanAccessClient(
+    currentUser: User,
+    ownerId: number,
+    client: ClientRef,
+  ): Promise<void> {
+    if (Number(ownerId) === Number(currentUser.id))
+      return this.assertCanAccessClient(currentUser, client);
+
+    // resolveOwner ya validó que el dueño existe y está activo; aquí solo falta su rol
+    const owner = await this.userRepository.findOne({
+      where: { id: ownerId },
+      select: { id: true, role: true },
+    });
+    if (!owner || !(await this.canAccessClient(owner, client)))
       throw new ClientAccessDeniedException(client.id);
   }
 

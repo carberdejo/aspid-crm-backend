@@ -26,6 +26,9 @@ describe('ClientAccessService', () => {
   const mockClientExceptionRepository = {
     exists: jest.fn(),
   };
+  const mockUserRepository = {
+    findOne: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -39,6 +42,7 @@ describe('ClientAccessService', () => {
           provide: getRepositoryToken(UserClientException),
           useValue: mockClientExceptionRepository,
         },
+        { provide: getRepositoryToken(User), useValue: mockUserRepository },
       ],
     }).compile();
 
@@ -121,6 +125,59 @@ describe('ClientAccessService', () => {
     it('should pass with access', async () => {
       await expect(
         service.assertCanAccessClient(employee, { id: 7, portfolioId: 10 }),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('assertOwnerCanAccessClient', () => {
+    it('should check the requester when the owner is the requester', async () => {
+      await expect(
+        service.assertOwnerCanAccessClient(employee, 5, {
+          id: 7,
+          portfolioId: 99,
+        }),
+      ).rejects.toThrow(ClientAccessDeniedException);
+      expect(mockUserRepository.findOne).not.toHaveBeenCalled();
+    });
+
+    it('should forbid the admin to register a client outside the owner portfolios', async () => {
+      // ARRANGE: el admin registra a nombre del empleado 5 un cliente de la cartera 99
+      mockUserRepository.findOne.mockResolvedValue(employee);
+
+      // ACT & ASSERT
+      await expect(
+        service.assertOwnerCanAccessClient(admin, 5, {
+          id: 7,
+          portfolioId: 99,
+        }),
+      ).rejects.toThrow(ClientAccessDeniedException);
+      expect(mockUserRepository.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 5 } }),
+      );
+    });
+
+    it('should let the admin register a client of the owner portfolios', async () => {
+      mockUserRepository.findOne.mockResolvedValue(employee);
+
+      await expect(
+        service.assertOwnerCanAccessClient(admin, 5, {
+          id: 7,
+          portfolioId: 10,
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should let the admin register for another admin with any client', async () => {
+      mockUserRepository.findOne.mockResolvedValue({
+        id: '2',
+        role: Role.ADMIN,
+      });
+
+      await expect(
+        service.assertOwnerCanAccessClient(admin, 2, {
+          id: 7,
+          portfolioId: 99,
+        }),
       ).resolves.toBeUndefined();
     });
   });

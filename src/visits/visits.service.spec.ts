@@ -90,7 +90,7 @@ describe('VisitsService', () => {
   };
 
   // El acceso a clientes tiene su propio spec: aquí solo importa que se consulte
-  const mockClientAccessService = { assertCanAccessClient: jest.fn() };
+  const mockClientAccessService = { assertOwnerCanAccessClient: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -126,7 +126,7 @@ describe('VisitsService', () => {
   describe('create', () => {
     it('should reject a client outside the user portfolios', async () => {
       // ARRANGE
-      mockClientAccessService.assertCanAccessClient.mockRejectedValueOnce(
+      mockClientAccessService.assertOwnerCanAccessClient.mockRejectedValueOnce(
         new ClientAccessDeniedException(7),
       );
 
@@ -167,10 +167,13 @@ describe('VisitsService', () => {
       // ACT
       await service.create({ ...createVisitDto, userId: 5 }, admin);
 
-      // ASSERT
+      // ASSERT: el cliente se valida contra el empleado (dueño), no contra el admin
       expect(mockVisitRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 5 }),
       );
+      expect(
+        mockClientAccessService.assertOwnerCanAccessClient,
+      ).toHaveBeenCalledWith(admin, 5, expect.objectContaining({ id: '7' }));
     });
 
     it('should throw when the contact does not belong to the client', async () => {

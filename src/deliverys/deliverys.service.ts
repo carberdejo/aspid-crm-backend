@@ -37,7 +37,12 @@ export class DeliverysService {
     const clientId = createDeliveryDto.clientId || null;
     if (clientId) {
       const client = await this.validationService.findClientById(clientId);
-      await this.clientAccessService.assertCanAccessClient(currentUser, client);
+      // El cliente debe ser accesible para el dueño (el empleado, aunque registre un admin)
+      await this.clientAccessService.assertOwnerCanAccessClient(
+        currentUser,
+        userId,
+        client,
+      );
     }
 
     const delivery = this.deliveryRepository.create({
@@ -185,17 +190,26 @@ export class DeliverysService {
 
     const changes: DeepPartial<Delivery> = { ...updateDeliveryDto };
     if (ownerId !== undefined) changes.userId = ownerId;
-    if (updateDeliveryDto.clientId !== undefined) {
+    if (updateDeliveryDto.clientId !== undefined)
       changes.clientId = updateDeliveryDto.clientId || null;
-      if (changes.clientId) {
-        const client = await this.validationService.findClientById(
-          changes.clientId,
-        );
-        await this.clientAccessService.assertCanAccessClient(
-          currentUser,
-          client,
-        );
-      }
+
+    // Si cambia el cliente o el dueño, el cliente final (si hay) debe ser accesible para el dueño final
+    const finalOwnerId = ownerId ?? Number(delivery.userId);
+    const finalClientId =
+      changes.clientId !== undefined ? changes.clientId : delivery.clientId;
+    if (
+      finalClientId &&
+      (updateDeliveryDto.clientId !== undefined ||
+        finalOwnerId !== Number(delivery.userId))
+    ) {
+      const client = await this.validationService.findClientById(
+        Number(finalClientId),
+      );
+      await this.clientAccessService.assertOwnerCanAccessClient(
+        currentUser,
+        finalOwnerId,
+        client,
+      );
     }
 
     await this.deliveryRepository.save(

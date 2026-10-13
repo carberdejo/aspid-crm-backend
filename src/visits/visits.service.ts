@@ -43,7 +43,12 @@ export class VisitsService {
     const client = await this.commonValidationService.findClientById(
       createVisitDto.clientId,
     );
-    await this.clientAccessService.assertCanAccessClient(currentUser, client);
+    // El cliente debe ser accesible para el dueño (el empleado, aunque registre un admin)
+    await this.clientAccessService.assertOwnerCanAccessClient(
+      currentUser,
+      userId,
+      client,
+    );
 
     const contact = await this.commonValidationService.findContactClientById(
       createVisitDto.contactId,
@@ -168,12 +173,17 @@ export class VisitsService {
         ? updateVisitDto
         : { ...updateVisitDto, userId: ownerId };
 
-    // Si se está actualizando clientId, validar que exista y que el usuario tenga acceso
-    if (updateVisitDto.clientId) {
+    // Si cambia el cliente o el dueño, el cliente final debe ser accesible para el dueño final
+    const finalOwnerId = ownerId ?? Number(visit.userId);
+    if (updateVisitDto.clientId || finalOwnerId !== Number(visit.userId)) {
       const client = await this.commonValidationService.findClientById(
-        updateVisitDto.clientId,
+        updateVisitDto.clientId || visit.clientId,
       );
-      await this.clientAccessService.assertCanAccessClient(currentUser, client);
+      await this.clientAccessService.assertOwnerCanAccessClient(
+        currentUser,
+        finalOwnerId,
+        client,
+      );
     }
 
     // Si se está actualizando contactId, validar que exista y pertenezca al cliente

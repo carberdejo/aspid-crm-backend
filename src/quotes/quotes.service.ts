@@ -42,11 +42,16 @@ export class QuotesService {
       createQuoteDto.departmentId,
       createQuoteDto.userId,
     );
-    // Validar que el cliente exista y que el usuario tenga acceso a él
+    // Validar que el cliente exista y que el dueño tenga acceso a él
+    // (el empleado, aunque registre un admin)
     const client = await this.commonValidationService.findClientById(
       createQuoteDto.clientId,
     );
-    await this.clientAccessService.assertCanAccessClient(currentUser, client);
+    await this.clientAccessService.assertOwnerCanAccessClient(
+      currentUser,
+      userId,
+      client,
+    );
     // Validar que el contacto exista
     const contact = await this.commonValidationService.findContactClientById(
       createQuoteDto.contactId,
@@ -241,11 +246,17 @@ export class QuotesService {
         : { ...updateQuoteDto, userId: ownerId };
 
     // 2. Validaciones de integridad si se envían IDs nuevos
-    if (updateQuoteDto.clientId) {
+    // Si cambia el cliente o el dueño, el cliente final debe ser accesible para el dueño final
+    const finalOwnerId = ownerId ?? Number(quote.userId);
+    if (updateQuoteDto.clientId || finalOwnerId !== Number(quote.userId)) {
       const client = await this.commonValidationService.findClientById(
-        updateQuoteDto.clientId,
+        updateQuoteDto.clientId || quote.clientId,
       );
-      await this.clientAccessService.assertCanAccessClient(currentUser, client);
+      await this.clientAccessService.assertOwnerCanAccessClient(
+        currentUser,
+        finalOwnerId,
+        client,
+      );
     }
     if (updateQuoteDto.contactId) {
       const contact = await this.commonValidationService.findContactClientById(
