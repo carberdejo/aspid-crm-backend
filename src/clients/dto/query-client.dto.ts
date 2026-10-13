@@ -22,4 +22,14 @@ export class QueryClientDto extends PaginationDto {
   @Type(() => Number)
   @IsOptional()
   segmentId: number; // Para filtrar clientes por segmento industrial
+
+  @ApiPropertyOptional({
+    description:
+      'Solo admin: lista los clientes que puede usar ese usuario (p. ej. al registrar a su nombre). Un user no puede usarlo: se ignora',
+    example: 5,
+  })
+  @IsNumber()
+  @Type(() => Number)
+  @IsOptional()
+  userId?: number;
 }

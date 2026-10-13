@@ -65,6 +65,13 @@ export class QuotesService {
         HttpStatus.BAD_REQUEST,
       );
     }
+    // Colaborador opcional: activo, del área y distinto del dueño
+    if (createQuoteDto.collaboratorId)
+      await this.accessScopeService.assertValidCollaborator(
+        createQuoteDto.collaboratorId,
+        userId,
+        createQuoteDto.departmentId,
+      );
     // Crear y guardar la cotización
     const quote = this.quoteRepository.create({ ...createQuoteDto, userId });
     const savedQuote = await this.quoteRepository.save(quote);
@@ -248,6 +255,22 @@ export class QuotesService {
     // 2. Validaciones de integridad si se envían IDs nuevos
     // Si cambia el cliente o el dueño, el cliente final debe ser accesible para el dueño final
     const finalOwnerId = ownerId ?? Number(quote.userId);
+
+    // Si cambia el colaborador, el dueño o el área, el colaborador final (si hay) se revalida.
+    // collaboratorId: null lo quita
+    const finalCollaboratorId =
+      updateQuoteDto.collaboratorId !== undefined
+        ? updateQuoteDto.collaboratorId
+        : quote.collaboratorId;
+    if (
+      finalCollaboratorId &&
+      (updateQuoteDto.collaboratorId !== undefined || ownerId !== undefined)
+    )
+      await this.accessScopeService.assertValidCollaborator(
+        finalCollaboratorId,
+        finalOwnerId,
+        Number(updateQuoteDto.departmentId ?? quote.departmentId),
+      );
     if (updateQuoteDto.clientId || finalOwnerId !== Number(quote.userId)) {
       const client = await this.commonValidationService.findClientById(
         updateQuoteDto.clientId || quote.clientId,

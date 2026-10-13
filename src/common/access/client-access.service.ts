@@ -14,6 +14,7 @@ import {
   ClientAccessDeniedException,
   PortfolioNotAssignedException,
 } from './access.exceptions';
+import { UsersNotFoundException } from 'src/users/exceptions/users.exceptions';
 
 /** Lo mínimo de un usuario para decidir el acceso */
 export type UserRef = Pick<User, 'id' | 'role'>;
@@ -63,7 +64,7 @@ export class ClientAccessService {
   applyClientScope<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     alias: string,
-    currentUser: User,
+    currentUser: UserRef,
   ): SelectQueryBuilder<T> {
     if (this.isAdmin(currentUser)) return queryBuilder;
 
@@ -148,7 +149,7 @@ export class ClientAccessService {
 
   /** Lanza 403 si el usuario no está asignado a la cartera. El admin pasa siempre. */
   async assertPortfolioAssigned(
-    currentUser: User,
+    currentUser: UserRef,
     portfolioId: number,
   ): Promise<void> {
     if (this.isAdmin(currentUser)) return;
@@ -156,5 +157,29 @@ export class ClientAccessService {
     const portfolioIds = await this.getPortfolioIds(currentUser);
     if (!portfolioIds.includes(Number(portfolioId)))
       throw new PortfolioNotAssignedException(portfolioId);
+  }
+
+  /**
+   * Usuario cuyo alcance se aplica a un listado de clientes.
+   * Un admin puede pedir el de otro usuario (p. ej. al registrar a nombre de un empleado,
+   * para mostrar solo los clientes que el backend aceptará). Para un user se ignora.
+   */
+  async resolveScopeUser(
+    currentUser: User,
+    requestedUserId?: number,
+  ): Promise<UserRef> {
+    if (
+      !this.isAdmin(currentUser) ||
+      !requestedUserId ||
+      Number(requestedUserId) === Number(currentUser.id)
+    )
+      return currentUser;
+
+    const user = await this.userRepository.findOne({
+      where: { id: requestedUserId },
+      select: { id: true, role: true },
+    });
+    if (!user) throw new UsersNotFoundException(requestedUserId);
+    return user;
   }
 }

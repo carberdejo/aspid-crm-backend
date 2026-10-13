@@ -4,6 +4,8 @@ import { DepartmentsService } from './departments.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
+import { AccessScopeService } from 'src/common/access/access-scope.service';
+import { User } from 'src/users/entities';
 
 describe('DepartmentsController', () => {
   let controller: DepartmentsController;
@@ -16,6 +18,7 @@ describe('DepartmentsController', () => {
     update: jest.fn(),
     remove: jest.fn(),
   };
+  const mockAccessScopeService = { findDepartmentMembers: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -25,6 +28,7 @@ describe('DepartmentsController', () => {
           provide: DepartmentsService,
           useValue: mockDepartmentsService,
         },
+        { provide: AccessScopeService, useValue: mockAccessScopeService },
       ],
     }).compile();
 
@@ -145,5 +149,22 @@ describe('DepartmentsController', () => {
       expect(service.remove).toHaveBeenCalledWith(1);
       expect(result).toEqual(expectedResult);
     });
+  });
+
+  it('should list the members of a department with the current user scope', async () => {
+    // ARRANGE
+    const user = { id: '5' } as unknown as User;
+    const members = [{ id: 5, codUser: 'C001', fullName: 'Ana Ruiz' }];
+    mockAccessScopeService.findDepartmentMembers.mockResolvedValue(members);
+
+    // ACT
+    const result = await controller.findMembers(3, user);
+
+    // ASSERT
+    expect(result).toEqual(members);
+    expect(mockAccessScopeService.findDepartmentMembers).toHaveBeenCalledWith(
+      user,
+      3,
+    );
   });
 });

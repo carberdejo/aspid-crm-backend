@@ -4,6 +4,7 @@ import { SelectQueryBuilder } from 'typeorm';
 import { AccessScopeService, OwnedResource } from './access-scope.service';
 import {
   DepartmentAccessDeniedException,
+  InvalidCollaboratorException,
   ResourceOwnershipException,
   TargetUserNotInDepartmentException,
 } from './access.exceptions';
@@ -32,6 +33,10 @@ describe('AccessScopeService', () => {
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     getExists: jest.fn(),
+    select: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
+    getMany: jest.fn(),
   };
   const mockUserDepartmentRepository = {
     createQueryBuilder: jest.fn(() => membershipQuery),
@@ -113,9 +118,12 @@ describe('AccessScopeService', () => {
 
       // ASSERT
       expect(ownerId).toBe(5);
-      expect(membershipQuery.where).toHaveBeenCalledWith('user.id = :ownerId', {
-        ownerId: 5,
-      });
+      expect(membershipQuery.where).toHaveBeenCalledWith(
+        'user.id = :memberId',
+        {
+          memberId: 5,
+        },
+      );
       expect(membershipQuery.andWhere).toHaveBeenCalledWith(
         'department.id = :departmentId',
         { departmentId: 3 },
@@ -265,6 +273,76 @@ describe('AccessScopeService', () => {
       expect(() =>
         service.assertCanModify(othersVisit, admin, 'la visita'),
       ).not.toThrow();
+    });
+  });
+
+  describe('assertValidCollaborator', () => {
+    it('should accept an active member of the department other than the owner', async () => {
+      membershipQuery.getExists.mockResolvedValue(true);
+
+      await expect(
+        service.assertValidCollaborator(7, 5, 3),
+      ).resolves.toBeUndefined();
+      expect(membershipQuery.where).toHaveBeenCalledWith(
+        'user.id = :memberId',
+        {
+          memberId: 7,
+        },
+      );
+    });
+
+    it('should reject the owner as collaborator without querying', async () => {
+      const error = await service
+        .assertValidCollaborator(5, 5, 3)
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(InvalidCollaboratorException);
+      expect((error as InvalidCollaboratorException).code).toBe(135);
+      expect(membershipQuery.getExists).not.toHaveBeenCalled();
+    });
+
+    it('should reject an inactive user or one outside the department', async () => {
+      membershipQuery.getExists.mockResolvedValue(false);
+
+      await expect(service.assertValidCollaborator(7, 5, 3)).rejects.toThrow(
+        InvalidCollaboratorException,
+      );
+    });
+  });
+
+  describe('findDepartmentMembers', () => {
+    const memberships = [
+      {
+        user: { id: '5', codUser: 'C001', firstName: 'Ana', lastName: 'Ruiz' },
+      },
+    ];
+
+    it('should list the active members of an own department', async () => {
+      membershipQuery.getMany.mockResolvedValue(memberships);
+
+      const result = await service.findDepartmentMembers(employee, 3);
+
+      expect(result).toEqual([
+        { id: 5, codUser: 'C001', fullName: 'Ana Ruiz' },
+      ]);
+      expect(membershipQuery.andWhere).toHaveBeenCalledWith(
+        'user.isActive = true',
+      );
+    });
+
+    it('should forbid a user to list another department', async () => {
+      await expect(service.findDepartmentMembers(employee, 2)).rejects.toThrow(
+        DepartmentAccessDeniedException,
+      );
+      expect(membershipQuery.getMany).not.toHaveBeenCalled();
+    });
+
+    it('should let the admin list any department', async () => {
+      membershipQuery.getMany.mockResolvedValue([]);
+
+      await expect(service.findDepartmentMembers(admin, 3)).resolves.toEqual(
+        [],
+      );
     });
   });
 });

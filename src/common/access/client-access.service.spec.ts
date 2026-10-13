@@ -11,6 +11,7 @@ import { UserClientException } from 'src/clients/entities/user-client-exception.
 import { Client } from 'src/clients/entities';
 import { User } from 'src/users/entities';
 import { Role } from 'src/users/interfaces';
+import { UsersNotFoundException } from 'src/users/exceptions/users.exceptions';
 
 // Postgres devuelve los bigint como string: los datos de prueba lo reflejan
 const employee = { id: '5', role: Role.USER } as unknown as User;
@@ -179,6 +180,33 @@ describe('ClientAccessService', () => {
           portfolioId: 99,
         }),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('resolveScopeUser', () => {
+    it('should ignore the requested user for role user', async () => {
+      await expect(service.resolveScopeUser(employee, 9)).resolves.toBe(
+        employee,
+      );
+      expect(mockUserRepository.findOne).not.toHaveBeenCalled();
+    });
+
+    it('should return the admin itself without a requested user', async () => {
+      await expect(service.resolveScopeUser(admin)).resolves.toBe(admin);
+    });
+
+    it('should load the user requested by the admin', async () => {
+      mockUserRepository.findOne.mockResolvedValue(employee);
+
+      await expect(service.resolveScopeUser(admin, 5)).resolves.toBe(employee);
+    });
+
+    it('should throw UsersNotFoundException (20) for an unknown user', async () => {
+      mockUserRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.resolveScopeUser(admin, 404)).rejects.toThrow(
+        UsersNotFoundException,
+      );
     });
   });
 

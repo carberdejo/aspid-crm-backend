@@ -20,6 +20,7 @@ import { User } from 'src/users/entities';
 import { Role } from 'src/users/interfaces';
 
 const employee = { id: '5', role: Role.USER } as unknown as User;
+const admin = { id: '1', role: Role.ADMIN } as unknown as User;
 
 describe('ClientsService', () => {
   let service: ClientsService;
@@ -45,6 +46,8 @@ describe('ClientsService', () => {
     applyClientScope: jest.fn(),
     assertCanAccessClient: jest.fn(),
     assertPortfolioAssigned: jest.fn(),
+    // Por defecto el alcance es el del usuario autenticado
+    resolveScopeUser: jest.fn((user: unknown) => Promise.resolve(user)),
   };
 
   const createClientDto = {
@@ -241,6 +244,33 @@ describe('ClientsService', () => {
       expect(
         mockClientAccessService.assertPortfolioAssigned,
       ).not.toHaveBeenCalled();
+    });
+
+    it('should apply the scope of the user requested by the admin', async () => {
+      // ARRANGE: el admin pide los clientes que puede usar el empleado
+      const qb = buildListQueryBuilder([[], 0]);
+      mockClientRepository.createQueryBuilder.mockReturnValue(qb);
+      mockClientAccessService.resolveScopeUser.mockResolvedValueOnce(employee);
+
+      // ACT
+      await service.findAll(
+        { userId: 5, portfolioId: 10 } as QueryClientDto,
+        admin,
+      );
+
+      // ASSERT: cartera y alcance se validan como el empleado
+      expect(mockClientAccessService.resolveScopeUser).toHaveBeenCalledWith(
+        admin,
+        5,
+      );
+      expect(
+        mockClientAccessService.assertPortfolioAssigned,
+      ).toHaveBeenCalledWith(employee, 10);
+      expect(mockClientAccessService.applyClientScope).toHaveBeenCalledWith(
+        qb,
+        'client',
+        employee,
+      );
     });
 
     it('should search by name or RUC with a single term', async () => {

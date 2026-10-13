@@ -5,6 +5,7 @@ import { User, UserDepartment } from 'src/users/entities';
 import { Role } from 'src/users/interfaces';
 import {
   DepartmentAccessDeniedException,
+  InvalidCollaboratorException,
   ResourceOwnershipException,
   TargetUserNotInDepartmentException,
 } from './access.exceptions';
@@ -89,19 +90,70 @@ export class AccessScopeService {
     }
 
     const ownerId = Number(requestedUserId);
-    const membership = await this.userDepartmentRepository
-      .createQueryBuilder('ud')
-      .innerJoin('ud.user', 'user')
-      .innerJoin('ud.department', 'department')
-      .where('user.id = :ownerId', { ownerId })
-      .andWhere('department.id = :departmentId', { departmentId })
-      .andWhere('user.isActive = true')
-      .getExists();
-
-    if (!membership)
+    if (!(await this.isActiveMember(ownerId, departmentId)))
       throw new TargetUserNotInDepartmentException(ownerId, departmentId);
 
     return ownerId;
+  }
+
+  /** true si el usuario está activo y pertenece al área */
+  private isActiveMember(userId: number, departmentId: number) {
+    return this.userDepartmentRepository
+      .createQueryBuilder('ud')
+      .innerJoin('ud.user', 'user')
+      .innerJoin('ud.department', 'department')
+      .where('user.id = :memberId', { memberId: userId })
+      .andWhere('department.id = :departmentId', { departmentId })
+      .andWhere('user.isActive = true')
+      .getExists();
+  }
+
+  /**
+   * Valida el colaborador de una cotización: activo, del área y distinto del dueño.
+   * No necesita acceso al cliente: solo lee esa cotización, no la ficha del cliente.
+   */
+  async assertValidCollaborator(
+    collaboratorId: number,
+    ownerId: number,
+    departmentId: number,
+  ): Promise<void> {
+    if (
+      Number(collaboratorId) === Number(ownerId) ||
+      !(await this.isActiveMember(Number(collaboratorId), departmentId))
+    )
+      throw new InvalidCollaboratorException(collaboratorId, departmentId);
+  }
+
+  /**
+   * Usuarios activos de un área, con lo mínimo para un selector (responsable, colaborador).
+   * El admin consulta cualquier área; un user solo las suyas.
+   */
+  async findDepartmentMembers(currentUser: User, departmentId: number) {
+    if (!this.isAdmin(currentUser))
+      this.assertDepartmentAccess(currentUser, departmentId);
+
+    const memberships = await this.userDepartmentRepository
+      .createQueryBuilder('ud')
+      .innerJoin('ud.user', 'user')
+      .innerJoin('ud.department', 'department')
+      .select([
+        'ud.id',
+        'user.id',
+        'user.codUser',
+        'user.firstName',
+        'user.lastName',
+      ])
+      .where('department.id = :departmentId', { departmentId })
+      .andWhere('user.isActive = true')
+      .orderBy('user.firstName', 'ASC')
+      .addOrderBy('user.lastName', 'ASC')
+      .getMany();
+
+    return memberships.map(({ user }) => ({
+      id: Number(user.id),
+      codUser: user.codUser,
+      fullName: `${user.firstName} ${user.lastName}`.trim(),
+    }));
   }
 
   /**

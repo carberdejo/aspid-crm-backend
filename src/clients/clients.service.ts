@@ -97,7 +97,14 @@ export class ClientsService {
   }
 
   async findAll(query: QueryClientDto, currentUser: User) {
-    const { term, limit = 10, offset = 0, portfolioId, segmentId } = query;
+    const {
+      term,
+      limit = 10,
+      offset = 0,
+      portfolioId,
+      segmentId,
+      userId,
+    } = query;
 
     const queryBuilder = this.clientRepository
       .createQueryBuilder('client')
@@ -113,16 +120,21 @@ export class ClientsService {
     );
 
     // 2. FILTRO DE SEGURIDAD (no-admin): clientes de sus carteras + excepciones activas.
-    // Solo puede filtrar por una cartera a la que esté asignado
+    // Solo puede filtrar por una cartera a la que esté asignado.
+    // Un admin puede pedir el alcance de otro usuario con userId
+    const scopeUser = await this.clientAccessService.resolveScopeUser(
+      currentUser,
+      userId,
+    );
     if (portfolioId)
       await this.clientAccessService.assertPortfolioAssigned(
-        currentUser,
+        scopeUser,
         portfolioId,
       );
     this.clientAccessService.applyClientScope(
       queryBuilder,
       'client',
-      currentUser,
+      scopeUser,
     );
 
     // query

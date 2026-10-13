@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { QuotesService } from './quotes.service';
 import { Quote } from './entities/quote.entity';
 import { CreateQuoteDto } from './dto/create-quote.dto';
+import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { QuoteStatus } from './interfaces/quote-status.enum';
 import { CommonValidationService } from 'src/common/common-validation.service';
 import { ExchangeRateService } from 'src/common/exchange-rate.service';
@@ -13,6 +14,7 @@ import {
   DepartmentAccessDeniedException,
   ResourceOwnershipException,
   TargetUserNotInDepartmentException,
+  InvalidCollaboratorException,
 } from 'src/common/access/access.exceptions';
 import { User, UserDepartment } from 'src/users/entities';
 import { Role } from 'src/users/interfaces';
@@ -193,6 +195,34 @@ describe('QuotesService', () => {
       ).rejects.toThrow(TargetUserNotInDepartmentException);
       expect(mockQuoteRepository.save).not.toHaveBeenCalled();
     });
+
+    it('should save a collaborator who is an active member of the department', async () => {
+      // ARRANGE
+      membershipQuery.getExists.mockResolvedValue(true);
+
+      // ACT
+      await service.create({ ...createQuoteDto, collaboratorId: 7 }, employee);
+
+      // ASSERT
+      expect(mockQuoteRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 5, collaboratorId: 7 }),
+      );
+    });
+
+    it('should reject a collaborator outside the department', async () => {
+      membershipQuery.getExists.mockResolvedValue(false);
+
+      await expect(
+        service.create({ ...createQuoteDto, collaboratorId: 7 }, employee),
+      ).rejects.toThrow(InvalidCollaboratorException);
+      expect(mockQuoteRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should reject the owner as collaborator', async () => {
+      await expect(
+        service.create({ ...createQuoteDto, collaboratorId: 5 }, employee),
+      ).rejects.toThrow(InvalidCollaboratorException);
+    });
   });
 
   describe('findAll', () => {
@@ -288,6 +318,51 @@ describe('QuotesService', () => {
       expect(mockQuoteRepository.merge).toHaveBeenCalledWith(ownQuote, {
         description: 'cambio',
       });
+    });
+
+    it('should reject changing the collaborator to someone outside the department', async () => {
+      mockQuoteRepository.findOneBy.mockResolvedValue(
+        buildQuote({ userId: '5' }),
+      );
+      membershipQuery.getExists.mockResolvedValue(false);
+
+      await expect(
+        service.update(20, { collaboratorId: 9 }, employee),
+      ).rejects.toThrow(InvalidCollaboratorException);
+      expect(mockQuoteRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should let the owner remove the collaborator with null', async () => {
+      // ARRANGE
+      const ownQuote = buildQuote({ userId: '5', collaboratorId: '7' });
+      mockQuoteRepository.findOneBy.mockResolvedValue(ownQuote);
+      mockQuoteRepository.findOne.mockResolvedValue(ownQuote);
+
+      // ACT
+      await service.update(
+        20,
+        { collaboratorId: null } as unknown as UpdateQuoteDto,
+        employee,
+      );
+
+      // ASSERT: no valida nada al quitarlo
+      expect(membershipQuery.getExists).not.toHaveBeenCalled();
+      expect(mockQuoteRepository.merge).toHaveBeenCalledWith(ownQuote, {
+        collaboratorId: null,
+      });
+    });
+
+    it('should revalidate the current collaborator when the admin changes the owner', async () => {
+      // ARRANGE: el colaborador actual (5) pasaría a ser también el dueño
+      mockQuoteRepository.findOneBy.mockResolvedValue(
+        buildQuote({ collaboratorId: '5' }),
+      );
+      membershipQuery.getExists.mockResolvedValue(true);
+
+      // ACT & ASSERT
+      await expect(service.update(20, { userId: 5 }, admin)).rejects.toThrow(
+        InvalidCollaboratorException,
+      );
     });
   });
 

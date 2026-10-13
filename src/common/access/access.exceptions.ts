@@ -72,3 +72,18 @@ export class PortfolioNotAssignedException extends ApiException {
     );
   }
 }
+
+/**
+ * El colaborador de una cotización no está activo, no pertenece al área
+ * o es el mismo dueño de la cotización
+ */
+export class InvalidCollaboratorException extends ApiException {
+  constructor(collaboratorId: number, departmentId: number) {
+    super(
+      135,
+      `El colaborador con ID ${collaboratorId} debe estar activo, pertenecer al área con ID ${departmentId} y ser distinto del responsable`,
+      undefined,
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+}
