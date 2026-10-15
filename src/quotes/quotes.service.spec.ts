@@ -5,6 +5,10 @@ import { Quote } from './entities/quote.entity';
 import { CreateQuoteDto } from './dto/create-quote.dto';
 import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { QuoteStatus } from './interfaces/quote-status.enum';
+import {
+  QuoteInvalidStatusTransitionException,
+  QuoteNotEditableException,
+} from './exceptions/quote.exceptions';
 import { CommonValidationService } from 'src/common/common-validation.service';
 import { ExchangeRateService } from 'src/common/exchange-rate.service';
 import { AccessScopeService } from 'src/common/access/access-scope.service';
@@ -278,6 +282,20 @@ describe('QuotesService', () => {
   });
 
   describe('update', () => {
+    it.each([QuoteStatus.APROBADO, QuoteStatus.RECHAZADO])(
+      'should forbid editing a quote in status %s',
+      async (status) => {
+        mockQuoteRepository.findOneBy.mockResolvedValue(
+          buildQuote({ userId: '5', status }),
+        );
+
+        await expect(
+          service.update(20, { description: 'cambio' }, employee),
+        ).rejects.toThrow(QuoteNotEditableException);
+        expect(mockQuoteRepository.save).not.toHaveBeenCalled();
+      },
+    );
+
     it('should forbid a collaborator from updating the quote', async () => {
       mockQuoteRepository.findOneBy.mockResolvedValue(
         buildQuote({ collaboratorId: '5' }),
@@ -377,6 +395,18 @@ describe('QuotesService', () => {
       );
       expect(mockQuoteRepository.save).not.toHaveBeenCalled();
     });
+
+    it.each([QuoteStatus.APROBADO, QuoteStatus.RECHAZADO])(
+      'should forbid rejecting a quote in status %s',
+      async (status) => {
+        mockQuoteRepository.findOneBy.mockResolvedValue(buildQuote({ status }));
+
+        await expect(service.remove(20, removeDto, admin)).rejects.toThrow(
+          QuoteInvalidStatusTransitionException,
+        );
+        expect(mockQuoteRepository.save).not.toHaveBeenCalled();
+      },
+    );
 
     it('should let the admin reject any quote', async () => {
       mockQuoteRepository.findOneBy.mockResolvedValue(buildQuote());

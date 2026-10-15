@@ -232,7 +232,13 @@ export class DeliverysService {
       RESOURCE_LABEL,
     );
 
-    await this.deliveryRepository.remove(delivery);
+    // Eliminado lógico: la entrega queda en la base con fecha y autor de la eliminación
+    await this.deliveryRepository.update(id, {
+      deletedAt: () => 'CURRENT_TIMESTAMP',
+      deletedBy: currentUser.id,
+    });
+
+    this.logger.log(`Delivery ${id} soft-deleted by user ${currentUser.id}`);
     return {
       message: 'Entrega eliminada exitosamente',
       deliveryId: id,

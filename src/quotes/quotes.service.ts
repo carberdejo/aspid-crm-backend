@@ -12,6 +12,7 @@ import { RemoveQuoteDto } from './dto/remove-quote.dto';
 import { QuoteStatus } from './interfaces/quote-status.enum';
 import {
   QuoteInvalidStatusTransitionException,
+  QuoteNotEditableException,
   QuoteNotFoundException,
 } from './exceptions/quote.exceptions';
 import { ExchangeRateService } from 'src/common/exchange-rate.service';
@@ -241,6 +242,11 @@ export class QuotesService {
     // Solo el dueño o un admin pueden editar (el colaborador no)
     this.accessScopeService.assertCanModify(quote, currentUser, RESOURCE_LABEL);
 
+    // Solo se editan las pendientes: una aprobada ya tiene OC y una rechazada está cerrada
+    if ((quote.status as QuoteStatus) !== QuoteStatus.PENDIENTE) {
+      throw new QuoteNotEditableException(quote.status);
+    }
+
     // Si la edición cambia el dueño o el área, se revalidan con las mismas reglas que al crear
     const ownerId = await this.accessScopeService.resolveOwnerOnUpdate(
       currentUser,
@@ -328,8 +334,9 @@ export class QuotesService {
     // Solo el dueño o un admin pueden rechazarla
     this.accessScopeService.assertCanModify(quote, currentUser, RESOURCE_LABEL);
 
-    // 2. Validar si ya está rechazada para no repetir el proceso
-    if ((quote.status as QuoteStatus) === QuoteStatus.RECHAZADO) {
+    // 2. Solo se rechaza una pendiente: una aprobada ya tiene OC (se anulará la OC) y
+    // una rechazada no se rechaza dos veces
+    if ((quote.status as QuoteStatus) !== QuoteStatus.PENDIENTE) {
       throw new QuoteInvalidStatusTransitionException(
         quote.status,
         QuoteStatus.RECHAZADO,

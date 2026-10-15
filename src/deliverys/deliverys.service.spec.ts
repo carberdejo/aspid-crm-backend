@@ -71,6 +71,7 @@ describe('DeliverysService', () => {
       ...changes,
     })),
     findOneBy: jest.fn(),
+    update: jest.fn(),
     remove: jest.fn(),
     createQueryBuilder: jest.fn(() => queryBuilder),
   };
@@ -264,17 +265,29 @@ describe('DeliverysService', () => {
       await expect(service.remove(41, employee)).rejects.toThrow(
         ResourceOwnershipException,
       );
-      expect(mockDeliveryRepository.remove).not.toHaveBeenCalled();
+      expect(mockDeliveryRepository.update).not.toHaveBeenCalled();
     });
 
-    it('should let the admin delete any delivery', async () => {
+    it('should let the admin soft-delete any delivery, recording who deleted it', async () => {
       mockDeliveryRepository.findOneBy.mockResolvedValue(othersDelivery);
 
       await service.remove(41, admin);
 
-      expect(mockDeliveryRepository.remove).toHaveBeenCalledWith(
-        othersDelivery,
+      expect(mockDeliveryRepository.update).toHaveBeenCalledWith(41, {
+        deletedAt: expect.any(Function) as () => string,
+        deletedBy: admin.id,
+      });
+      expect(mockDeliveryRepository.remove).not.toHaveBeenCalled();
+    });
+
+    it('should not find a delivery that was already deleted', async () => {
+      // findOneBy excluye las eliminadas lógicamente, así que no la encuentra
+      mockDeliveryRepository.findOneBy.mockResolvedValue(null);
+
+      await expect(service.remove(41, admin)).rejects.toThrow(
+        DeliveryNotFoundException,
       );
+      expect(mockDeliveryRepository.update).not.toHaveBeenCalled();
     });
   });
 });

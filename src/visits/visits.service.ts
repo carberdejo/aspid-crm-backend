@@ -220,8 +220,13 @@ export class VisitsService {
 
     this.accessScopeService.assertCanModify(visit, currentUser, RESOURCE_LABEL);
 
-    await this.visitRepository.delete(id);
+    // Eliminado lógico: la visita queda en la base con fecha y autor de la eliminación
+    await this.visitRepository.update(id, {
+      deletedAt: () => 'CURRENT_TIMESTAMP',
+      deletedBy: currentUser.id,
+    });
 
+    this.logger.log(`Visit ${id} soft-deleted by user ${currentUser.id}`);
     return {
       message: 'Visita eliminada exitosamente',
     };

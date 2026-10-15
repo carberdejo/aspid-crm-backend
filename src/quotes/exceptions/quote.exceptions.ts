@@ -73,3 +73,18 @@ export class QuoteDataInvalidException extends ApiException {
     );
   }
 }
+
+/**
+ * Exception de lógica de negocio: solo las cotizaciones PENDIENTE se pueden editar.
+ * Una aprobada ya tiene orden de compra y una rechazada está cerrada.
+ */
+export class QuoteNotEditableException extends ApiException {
+  constructor(status: string) {
+    super(
+      55,
+      `Solo se pueden editar cotizaciones en estado PENDIENTE (estado actual: ${status})`,
+      undefined,
+      HttpStatus.CONFLICT,
+    );
+  }
+}

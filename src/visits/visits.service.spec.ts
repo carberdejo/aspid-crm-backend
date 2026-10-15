@@ -13,7 +13,10 @@ import {
 import { User, UserDepartment } from 'src/users/entities';
 import { Role } from 'src/users/interfaces';
 import { CreateVisitDto } from './dto/create-visit.dto';
-import { VisitContactNotBelongToClientException } from './exceptions/visit.exceptions';
+import {
+  VisitContactNotBelongToClientException,
+  VisitNotFoundException,
+} from './exceptions/visit.exceptions';
 
 // Postgres devuelve los bigint como string: los datos de prueba lo reflejan
 const buildUser = (id: string, role: Role, departmentIds: string[]): User =>
@@ -345,15 +348,29 @@ describe('VisitsService', () => {
       await expect(service.remove(11, employee)).rejects.toThrow(
         ResourceOwnershipException,
       );
-      expect(mockVisitRepository.delete).not.toHaveBeenCalled();
+      expect(mockVisitRepository.update).not.toHaveBeenCalled();
     });
 
-    it('should let the admin delete any visit', async () => {
+    it('should let the admin soft-delete any visit, recording who deleted it', async () => {
       mockVisitRepository.findOne.mockResolvedValue(othersVisit);
 
       await service.remove(11, admin);
 
-      expect(mockVisitRepository.delete).toHaveBeenCalledWith(11);
+      expect(mockVisitRepository.update).toHaveBeenCalledWith(11, {
+        deletedAt: expect.any(Function) as () => string,
+        deletedBy: admin.id,
+      });
+      expect(mockVisitRepository.delete).not.toHaveBeenCalled();
+    });
+
+    it('should not find a visit that was already deleted', async () => {
+      // findOne excluye las eliminadas lógicamente, así que no la encuentra
+      mockVisitRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.remove(11, admin)).rejects.toThrow(
+        VisitNotFoundException,
+      );
+      expect(mockVisitRepository.update).not.toHaveBeenCalled();
     });
   });
 });

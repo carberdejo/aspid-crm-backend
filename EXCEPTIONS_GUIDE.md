@@ -90,7 +90,7 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 | 20-29 | **Users** | 5 | UsersNotFoundException, UsersEmailAlreadyExistsException, UsersCodUserAlreadyExistsException, ContactNotFoundException, UserDataInvalidException |
 | 30-39 | **Visits** | 3 | VisitNotFoundException, VisitContactNotBelongToClientException, VisitDataInvalidException |
 | 40-49 | **Departments** | 4 | DepartmentNotFoundException, DepartmentAlreadyExistsException, DepartmentInUseException, DepartmentDataInvalidException |
-| 50-59 | **Quotes** | 5 | QuoteNotFoundException, QuoteNumberAlreadyExistsException, QuoteContactNotBelongToClientException, QuoteInvalidStatusTransitionException, QuoteDataInvalidException |
+| 50-59 | **Quotes** | 6 | QuoteNotFoundException, QuoteNumberAlreadyExistsException, QuoteContactNotBelongToClientException, QuoteInvalidStatusTransitionException, QuoteDataInvalidException, QuoteNotEditableException |
 | 60-69 | **Analytics** | 3 | InvalidDateRangeException, NoDataAvailableForMetricsException, InvalidMetricsParametersException |
 | 70-79 | **Auth** | 6 | InvalidCredentialsException, InvalidRefreshTokenException, SessionNotFoundException, SessionExpiredException, InvalidTokenHashException, UserInactiveException |
 | 80-89 | **Catalogs** | 5 | SegmentCodeAlreadyExistsException, SegmentNotFoundException, SegmentAlreadyDeactivatedException, SegmentAlreadyActivatedException, SegmentDataInvalidException |
@@ -100,7 +100,7 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 | 120-129 | **Portfolios** | 7 | PortfolioCodeAlreadyExistsException, PortfolioNotFoundException, PortfolioAlreadyDeactivatedException, PortfolioAlreadyActivatedException, EmptyPortfolioUsersException, PortfolioDataInvalidException, PortfolioUpdateFailedException |
 | 130-139 | **Access** | 6 | DepartmentAccessDeniedException, ResourceOwnershipException, TargetUserNotInDepartmentException, ClientAccessDeniedException, PortfolioNotAssignedException, InvalidCollaboratorException |
 
-**Total: 60 custom exceptions refactorizadas**
+**Total: 61 custom exceptions refactorizadas**
 
 ---
 
@@ -196,6 +196,7 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 | 52 | `QuoteContactNotBelongToClientException` | 400 | Relación inválida |
 | 53 | `QuoteInvalidStatusTransitionException` | 400 | Transición estado inválida |
 | 54 | `QuoteDataInvalidException` | 400 | Datos inválidos (lógica negocio) |
+| 55 | `QuoteNotEditableException` | 409 | Edición de cotización que no está en PENDIENTE |
 
 **Importa y reutiliza:**
 - `UsersNotFoundException` desde users.exceptions

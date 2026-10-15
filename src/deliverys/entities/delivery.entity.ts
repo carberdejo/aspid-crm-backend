@@ -7,6 +7,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
@@ -58,4 +59,11 @@ export class Delivery {
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamp with time zone' })
   updatedAt: Date;
+
+  // Eliminado lógico: TypeORM excluye estas filas de las consultas de la entidad
+  @DeleteDateColumn({ name: 'deleted_at', type: 'timestamp with time zone' })
+  deletedAt: Date | null;
+
+  @Column({ name: 'deleted_by', type: 'bigint', nullable: true })
+  deletedBy: number | null;
 }

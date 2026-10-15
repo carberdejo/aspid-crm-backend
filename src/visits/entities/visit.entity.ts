@@ -5,6 +5,7 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  DeleteDateColumn,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger'; // <-- Importar esto
 import { User } from '../../users/entities/user.entity';
@@ -63,6 +64,13 @@ export class Visit {
   })
   @Column({ name: 'outcome_summary', type: 'text', nullable: true })
   outcomeSummary: string;
+
+  // Eliminado lógico: TypeORM excluye estas filas de las consultas de la entidad
+  @DeleteDateColumn({ name: 'deleted_at', type: 'timestamp with time zone' })
+  deletedAt: Date | null;
+
+  @Column({ name: 'deleted_by', type: 'bigint', nullable: true })
+  deletedBy: number | null;
 
   // --- RELACIONES ---
   // Importante: Usar la función flecha () => Entity para evitar referencias circulares en Swagger
