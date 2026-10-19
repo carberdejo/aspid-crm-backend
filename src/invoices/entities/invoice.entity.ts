@@ -1,10 +1,10 @@
 import { PurchaseOrder } from 'src/orders/entities/order.entity';
+import { DocumentStatus } from 'src/orders/interfaces/document-status.enum';
 import { QuoteCurrency } from 'src/quotes/interfaces/quote-currency.enum';
 import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  CreateDateColumn,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
@@ -17,7 +17,8 @@ export class Invoice {
   @Column({ name: 'order_id', type: 'bigint' })
   orderId: number;
 
-  @CreateDateColumn({
+  // Fecha de emisión que indica el usuario (editable): columna normal, no de auditoría
+  @Column({
     name: 'issue_date',
     type: 'date',
     default: () => 'CURRENT_DATE',
@@ -43,6 +44,28 @@ export class Invoice {
     default: QuoteCurrency.USD,
   })
   currency: QuoteCurrency;
+
+  // Anulación (migración AnnulOrdersInvoices): el número de una factura anulada
+  // queda reservado y no se vuelve a usar
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: DocumentStatus.VIGENTE,
+  })
+  status: DocumentStatus;
+
+  @Column({
+    name: 'annulled_at',
+    type: 'timestamp with time zone',
+    nullable: true,
+  })
+  annulledAt: Date | null;
+
+  @Column({ name: 'annulled_by', type: 'bigint', nullable: true })
+  annulledBy: number | null;
+
+  @Column({ name: 'annul_reason', type: 'text', nullable: true })
+  annulReason: string | null;
 
   // Relación: Muchas facturas pertenecen a una Orden de Compra
   @ManyToOne(() => PurchaseOrder, (order) => order.invoices)

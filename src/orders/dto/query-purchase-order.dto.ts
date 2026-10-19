@@ -8,6 +8,7 @@ import {
 } from 'class-validator';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { BillingStatus } from '../interfaces/billing-status.enum';
+import { DocumentStatus } from '../interfaces/document-status.enum';
 
 export class QueryPurchaseOrderDto extends PaginationDto {
   @IsOptional()
@@ -51,4 +52,9 @@ export class QueryPurchaseOrderDto extends PaginationDto {
   @IsArray()
   @IsEnum(BillingStatus, { each: true })
   billingStatus?: BillingStatus[];
+
+  // Sin filtro se listan vigentes y anuladas
+  @IsOptional()
+  @IsEnum(DocumentStatus)
+  status?: DocumentStatus;
 }

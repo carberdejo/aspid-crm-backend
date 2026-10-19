@@ -1,17 +1,27 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, QueryFailedError } from 'typeorm';
 import { OrdersService } from './orders.service';
 import { PurchaseOrder } from './entities/order.entity';
+import { BillingStatus } from './interfaces/billing-status.enum';
+import { DocumentStatus } from './interfaces/document-status.enum';
+import {
+  OrderAmountBelowInvoicedException,
+  OrderAnnulledException,
+  OrderHasActiveInvoicesException,
+  PoNumberAlreadyExistsException,
+  QuoteHasActiveOrderException,
+} from './exceptions/order.exceptions';
 import { CommonValidationService } from 'src/common/common-validation.service';
 import { AccessScopeService } from 'src/common/access/access-scope.service';
 import { ResourceOwnershipException } from 'src/common/access/access.exceptions';
 import { Quote } from 'src/quotes/entities/quote.entity';
 import { QuoteStatus } from 'src/quotes/interfaces/quote-status.enum';
+import { QuoteInvalidStatusTransitionException } from 'src/quotes/exceptions/quote.exceptions';
 import { User, UserDepartment } from 'src/users/entities';
 import { Role } from 'src/users/interfaces';
 
-// Postgres devuelve los bigint como string: los datos de prueba lo reflejan
+// Postgres devuelve los bigint y decimales como string: los datos de prueba lo reflejan
 const buildUser = (id: string, role: Role, departmentIds: string[]): User =>
   ({
     id,
@@ -23,12 +33,31 @@ const buildUser = (id: string, role: Role, departmentIds: string[]): User =>
 
 const buildQuote = (overrides: Record<string, unknown> = {}) => ({
   id: '20',
+  quoteNumber: 'COT-020',
   userId: '8',
   departmentId: '3',
   collaboratorId: null,
+  currency: 'PEN',
   status: QuoteStatus.PENDIENTE,
   ...overrides,
 });
+
+const buildPo = (overrides: Record<string, unknown> = {}) => ({
+  id: '30',
+  poNumber: 'OC-001',
+  quoteId: '20',
+  amount: '1000.00',
+  currency: 'USD',
+  status: DocumentStatus.VIGENTE,
+  billingStatus: BillingStatus.PENDIENTE_FACTURACION,
+  ...overrides,
+});
+
+const uniqueViolation = (constraint: string) =>
+  new QueryFailedError('INSERT', [], {
+    code: '23505',
+    constraint,
+  } as unknown as Error);
 
 describe('OrdersService', () => {
   let service: OrdersService;
@@ -39,19 +68,37 @@ describe('OrdersService', () => {
 
   const createPoDto = { poNumber: 'OC-001', quoteId: 20, amount: 1500 };
 
-  const queryRunner = {
-    connect: jest.fn(),
-    startTransaction: jest.fn(),
-    commitTransaction: jest.fn(),
-    rollbackTransaction: jest.fn(),
-    release: jest.fn(),
-    manager: {
-      create: jest.fn((_entity: unknown, data: object) => data),
-      save: jest.fn((data: object) => Promise.resolve({ id: '30', ...data })),
-      update: jest.fn(),
-    },
+  // Estado que devuelve el manager de la transacción en cada prueba
+  const state: {
+    po?: Record<string, unknown>;
+    quote: Record<string, unknown>;
+    invoiced: string;
+  } = { quote: buildQuote(), invoiced: '0' };
+
+  const sumQueryBuilder = {
+    select: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    getRawOne: jest.fn(() => Promise.resolve({ total: state.invoiced })),
   };
-  const mockDataSource = { createQueryRunner: jest.fn(() => queryRunner) };
+  const manager = {
+    findOne: jest.fn((entity: unknown) =>
+      Promise.resolve(entity === PurchaseOrder ? state.po : state.quote),
+    ),
+    findOneOrFail: jest.fn(() => Promise.resolve(state.quote)),
+    create: jest.fn((_entity: unknown, data: object) => data),
+    merge: jest.fn((_entity: unknown, target: object, changes: object) =>
+      Object.assign(target, changes),
+    ),
+    save: jest.fn((data: object) => Promise.resolve({ id: '30', ...data })),
+    update: jest.fn(),
+    createQueryBuilder: jest.fn(() => sumQueryBuilder),
+  };
+  const mockDataSource = {
+    transaction: jest.fn((work: (m: typeof manager) => unknown) =>
+      work(manager),
+    ),
+  };
 
   const listQueryBuilder = {
     leftJoinAndSelect: jest.fn().mockReturnThis(),
@@ -70,10 +117,14 @@ describe('OrdersService', () => {
   };
 
   const mockCommonValidationService = {
-    validateQuoteAprobed: jest.fn(),
+    findQuoteById: jest.fn(),
   };
 
   beforeEach(async () => {
+    state.po = buildPo();
+    state.quote = buildQuote();
+    state.invoiced = '0';
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrdersService,
@@ -101,50 +152,78 @@ describe('OrdersService', () => {
   describe('create', () => {
     it('should create the PO and approve the quote in the same transaction', async () => {
       // ARRANGE
-      mockCommonValidationService.validateQuoteAprobed.mockResolvedValue(
-        buildQuote({ userId: '5' }),
-      );
+      state.quote = buildQuote({ userId: '5' });
+      mockCommonValidationService.findQuoteById.mockResolvedValue(state.quote);
 
       // ACT
       const result = await service.create(createPoDto, employee);
 
       // ASSERT
       expect(result.message).toContain('OC-001');
-      expect(queryRunner.manager.save).toHaveBeenCalled();
-      expect(queryRunner.manager.update).toHaveBeenCalledWith(
+      expect(manager.findOneOrFail).toHaveBeenCalledWith(Quote, {
+        where: { id: 20 },
+        lock: { mode: 'pessimistic_write' },
+      });
+      expect(manager.save).toHaveBeenCalledWith(
+        // Sin moneda indicada, toma la de la cotización
+        expect.objectContaining({ poNumber: 'OC-001', currency: 'PEN' }),
+      );
+      expect(manager.update).toHaveBeenCalledWith(
         Quote,
         20,
         expect.objectContaining({ status: QuoteStatus.APROBADO }),
       );
-      expect(queryRunner.commitTransaction).toHaveBeenCalled();
     });
 
-    it('should roll back when approving the quote fails', async () => {
-      mockCommonValidationService.validateQuoteAprobed.mockResolvedValue(
+    it('should reject the PO when the locked quote is no longer PENDIENTE (race)', async () => {
+      mockCommonValidationService.findQuoteById.mockResolvedValue(
         buildQuote({ userId: '5' }),
       );
-      queryRunner.manager.update.mockRejectedValueOnce(new Error('db down'));
+      // Otra petición la aprobó entre la validación y el bloqueo
+      state.quote = buildQuote({ userId: '5', status: QuoteStatus.APROBADO });
 
       await expect(service.create(createPoDto, employee)).rejects.toThrow(
-        'db down',
+        QuoteHasActiveOrderException,
       );
-      expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
-      expect(queryRunner.commitTransaction).not.toHaveBeenCalled();
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('should reject a PO for a rejected quote before opening the transaction', async () => {
+      mockCommonValidationService.findQuoteById.mockResolvedValue(
+        buildQuote({ userId: '5', status: QuoteStatus.RECHAZADO }),
+      );
+
+      await expect(service.create(createPoDto, employee)).rejects.toThrow(
+        QuoteInvalidStatusTransitionException,
+      );
+      expect(mockDataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('should translate a duplicated active PO number into a business error', async () => {
+      mockCommonValidationService.findQuoteById.mockResolvedValue(
+        buildQuote({ userId: '5' }),
+      );
+      state.quote = buildQuote({ userId: '5' });
+      manager.save.mockRejectedValueOnce(
+        uniqueViolation('uk_po_number_active'),
+      );
+
+      await expect(service.create(createPoDto, employee)).rejects.toThrow(
+        PoNumberAlreadyExistsException,
+      );
     });
 
     it('should forbid creating a PO for a quote of another user', async () => {
-      mockCommonValidationService.validateQuoteAprobed.mockResolvedValue(
-        buildQuote(),
-      );
+      mockCommonValidationService.findQuoteById.mockResolvedValue(buildQuote());
 
       await expect(service.create(createPoDto, employee)).rejects.toThrow(
         ResourceOwnershipException,
       );
-      expect(mockDataSource.createQueryRunner).not.toHaveBeenCalled();
+      expect(mockDataSource.transaction).not.toHaveBeenCalled();
     });
 
     it('should forbid a collaborator from creating the PO', async () => {
-      mockCommonValidationService.validateQuoteAprobed.mockResolvedValue(
+      mockCommonValidationService.findQuoteById.mockResolvedValue(
         buildQuote({ collaboratorId: '5' }),
       );
 
@@ -154,9 +233,7 @@ describe('OrdersService', () => {
     });
 
     it('should let the admin create a PO for any quote', async () => {
-      mockCommonValidationService.validateQuoteAprobed.mockResolvedValue(
-        buildQuote(),
-      );
+      mockCommonValidationService.findQuoteById.mockResolvedValue(buildQuote());
 
       await expect(service.create(createPoDto, admin)).resolves.toHaveProperty(
         'message',
@@ -164,7 +241,122 @@ describe('OrdersService', () => {
     });
   });
 
+  describe('update', () => {
+    beforeEach(() => {
+      // findOne final (respuesta con el detalle actualizado)
+      listQueryBuilder.getOne.mockResolvedValue({
+        ...buildPo(),
+        quote: { ...buildQuote(), client: {}, contact: null, user: {} },
+      });
+    });
+
+    it('should forbid editing an annulled PO', async () => {
+      state.po = buildPo({ status: DocumentStatus.ANULADA });
+
+      await expect(
+        service.update(30, { poNumber: 'OC-002' }, admin),
+      ).rejects.toThrow(OrderAnnulledException);
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('should forbid changing the currency when the PO has active invoices', async () => {
+      state.invoiced = '200.00';
+
+      await expect(
+        service.update(30, { currency: 'PEN' as never }, admin),
+      ).rejects.toThrow(OrderHasActiveInvoicesException);
+    });
+
+    it('should forbid an amount below what is already invoiced', async () => {
+      state.invoiced = '600.00';
+
+      await expect(service.update(30, { amount: 500 }, admin)).rejects.toThrow(
+        OrderAmountBelowInvoicedException,
+      );
+    });
+
+    it('should recalculate the billing status when the amount changes', async () => {
+      // Facturado 600 de 1000 (parcial); al bajar el monto a 600 queda completo
+      state.invoiced = '600.00';
+
+      await service.update(30, { amount: 600 }, admin);
+
+      expect(manager.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amount: 600,
+          billingStatus: BillingStatus.FACTURADO_COMPLETO,
+        }),
+      );
+    });
+
+    it('should forbid a collaborator from editing the PO', async () => {
+      state.quote = buildQuote({ collaboratorId: '5' });
+
+      await expect(
+        service.update(30, { poNumber: 'OC-002' }, employee),
+      ).rejects.toThrow(ResourceOwnershipException);
+    });
+  });
+
+  describe('annul', () => {
+    const annulDto = { annulReason: 'El cliente reenviará la OC corregida' };
+
+    it('should annul the PO and send its quote back to PENDIENTE', async () => {
+      state.quote = buildQuote({ userId: '5', status: QuoteStatus.APROBADO });
+
+      const result = await service.annul(30, annulDto, employee);
+
+      expect(result.message).toContain('OC-001');
+      expect(manager.update).toHaveBeenCalledWith(PurchaseOrder, 30, {
+        status: DocumentStatus.ANULADA,
+        annulledAt: expect.any(Function) as () => string,
+        annulledBy: '5',
+        annulReason: annulDto.annulReason,
+      });
+      expect(manager.update).toHaveBeenCalledWith(
+        Quote,
+        '20',
+        expect.objectContaining({ status: QuoteStatus.PENDIENTE }),
+      );
+    });
+
+    it('should forbid annulling a PO with active invoices', async () => {
+      state.invoiced = '100.00';
+
+      await expect(service.annul(30, annulDto, admin)).rejects.toThrow(
+        OrderHasActiveInvoicesException,
+      );
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('should forbid annulling an already annulled PO', async () => {
+      state.po = buildPo({ status: DocumentStatus.ANULADA });
+
+      await expect(service.annul(30, annulDto, admin)).rejects.toThrow(
+        OrderAnnulledException,
+      );
+    });
+
+    it('should forbid annulling a PO of another user', async () => {
+      await expect(service.annul(30, annulDto, employee)).rejects.toThrow(
+        ResourceOwnershipException,
+      );
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('findAll', () => {
+    it('should only count active invoices in what is invoiced', async () => {
+      await service.findAll({ limit: 10, offset: 0 }, admin);
+
+      expect(listQueryBuilder.leftJoin).toHaveBeenCalledWith(
+        'po.invoices',
+        'invoice',
+        'invoice.status = :activeStatus',
+        { activeStatus: DocumentStatus.VIGENTE },
+      );
+    });
+
     it('should scope POs through the quote for a user', async () => {
       await service.findAll({ limit: 10, offset: 0 }, employee);
 
@@ -186,7 +378,7 @@ describe('OrdersService', () => {
   });
 
   describe('findOne', () => {
-    const buildPo = (quoteOverrides: Record<string, unknown> = {}) => ({
+    const buildPoDetail = (quoteOverrides: Record<string, unknown> = {}) => ({
       id: '30',
       poNumber: 'OC-001',
       quote: {
@@ -198,7 +390,7 @@ describe('OrdersService', () => {
     });
 
     it('should forbid reading a PO of another user', async () => {
-      listQueryBuilder.getOne.mockResolvedValue(buildPo());
+      listQueryBuilder.getOne.mockResolvedValue(buildPoDetail());
 
       await expect(service.findOne(30, employee)).rejects.toThrow(
         ResourceOwnershipException,
@@ -207,7 +399,7 @@ describe('OrdersService', () => {
 
     it('should let the collaborator of the quote read the PO', async () => {
       listQueryBuilder.getOne.mockResolvedValue(
-        buildPo({ collaboratorId: '5' }),
+        buildPoDetail({ collaboratorId: '5' }),
       );
 
       await expect(service.findOne(30, employee)).resolves.toBeDefined();

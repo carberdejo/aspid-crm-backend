@@ -71,3 +71,60 @@ export class OrderCreationFailedException extends ApiException {
     );
   }
 }
+
+/**
+ * Exception de lógica de negocio: la OC está anulada y ya no se puede modificar
+ */
+export class OrderAnnulledException extends ApiException {
+  constructor(poNumber: string) {
+    super(
+      115,
+      `La orden de compra '${poNumber}' está anulada y no se puede modificar`,
+      undefined,
+      HttpStatus.CONFLICT,
+    );
+  }
+}
+
+/**
+ * Exception de lógica de negocio: la acción requiere que la OC no tenga facturas vigentes
+ * (anularla o cambiar su moneda). Primero se deben anular sus facturas
+ */
+export class OrderHasActiveInvoicesException extends ApiException {
+  constructor(poNumber: string, action: string) {
+    super(
+      116,
+      `No se puede ${action} la orden de compra '${poNumber}' porque tiene facturas vigentes. Anule primero sus facturas`,
+      undefined,
+      HttpStatus.CONFLICT,
+    );
+  }
+}
+
+/**
+ * Exception de lógica de negocio: el nuevo monto de la OC es menor a lo ya facturado
+ */
+export class OrderAmountBelowInvoicedException extends ApiException {
+  constructor(amount: number, invoiced: number) {
+    super(
+      117,
+      `El monto de la orden (${amount}) no puede ser menor a lo ya facturado (${invoiced})`,
+      undefined,
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+}
+
+/**
+ * Exception de lógica de negocio: la cotización ya tiene una OC vigente
+ */
+export class QuoteHasActiveOrderException extends ApiException {
+  constructor(quoteNumber: string) {
+    super(
+      118,
+      `La cotización '${quoteNumber}' ya tiene una orden de compra vigente`,
+      undefined,
+      HttpStatus.CONFLICT,
+    );
+  }
+}

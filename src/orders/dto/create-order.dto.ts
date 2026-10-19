@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsISO8601,
+  IsEnum,
   Min,
 } from 'class-validator';
 import { QuoteCurrency } from 'src/quotes/interfaces/quote-currency.enum';
@@ -27,6 +28,6 @@ export class CreatePurchaseOrderDto {
   amount: number;
 
   @IsOptional()
-  @IsString()
+  @IsEnum(QuoteCurrency)
   currency?: QuoteCurrency;
 }

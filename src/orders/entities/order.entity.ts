@@ -4,11 +4,12 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  OneToOne,
+  ManyToOne,
   JoinColumn,
   OneToMany,
 } from 'typeorm';
 import { BillingStatus } from '../interfaces/billing-status.enum';
+import { DocumentStatus } from '../interfaces/document-status.enum';
 import { QuoteCurrency } from 'src/quotes/interfaces/quote-currency.enum';
 
 @Entity({ name: 'purchase_order' })
@@ -48,7 +49,29 @@ export class PurchaseOrder {
   })
   currency: QuoteCurrency;
 
-  @OneToOne(() => Quote)
+  // Anulación (migración AnnulOrdersInvoices): una OC anulada no se borra
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: DocumentStatus.VIGENTE,
+  })
+  status: DocumentStatus;
+
+  @Column({
+    name: 'annulled_at',
+    type: 'timestamp with time zone',
+    nullable: true,
+  })
+  annulledAt: Date | null;
+
+  @Column({ name: 'annulled_by', type: 'bigint', nullable: true })
+  annulledBy: number | null;
+
+  @Column({ name: 'annul_reason', type: 'text', nullable: true })
+  annulReason: string | null;
+
+  // Una cotización puede tener varias OC, pero solo una vigente (índice uk_po_active_quote)
+  @ManyToOne(() => Quote)
   @JoinColumn({ name: 'quote_id' })
   quote: Quote;
 

@@ -95,12 +95,12 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 | 70-79 | **Auth** | 6 | InvalidCredentialsException, InvalidRefreshTokenException, SessionNotFoundException, SessionExpiredException, InvalidTokenHashException, UserInactiveException |
 | 80-89 | **Catalogs** | 5 | SegmentCodeAlreadyExistsException, SegmentNotFoundException, SegmentAlreadyDeactivatedException, SegmentAlreadyActivatedException, SegmentDataInvalidException |
 | 90-99 | **Deliverys** | 3 | DeliveryNotFoundException, EmptyDeliveryItemsException, InvalidDeliveryDataException |
-| 100-109 | **Invoices** | 5 | InvoiceNotFoundException, InvoiceNumberAlreadyExistsException, InvoiceAmountExceedsOrderException, InvoiceDataInvalidException, InvoiceCreationFailedException |
-| 110-119 | **Orders** | 5 | PurchaseOrderNotFoundException, QuoteNotApprovedException, PoNumberAlreadyExistsException, OrderDataInvalidException, OrderCreationFailedException |
+| 100-109 | **Invoices** | 7 | InvoiceNotFoundException, InvoiceNumberAlreadyExistsException, InvoiceAmountExceedsOrderException, InvoiceDataInvalidException, InvoiceCreationFailedException, InvoiceAnnulledException, InvoiceCurrencyMismatchException |
+| 110-119 | **Orders** | 9 | PurchaseOrderNotFoundException, QuoteNotApprovedException, PoNumberAlreadyExistsException, OrderDataInvalidException, OrderCreationFailedException, OrderAnnulledException, OrderHasActiveInvoicesException, OrderAmountBelowInvoicedException, QuoteHasActiveOrderException |
 | 120-129 | **Portfolios** | 7 | PortfolioCodeAlreadyExistsException, PortfolioNotFoundException, PortfolioAlreadyDeactivatedException, PortfolioAlreadyActivatedException, EmptyPortfolioUsersException, PortfolioDataInvalidException, PortfolioUpdateFailedException |
 | 130-139 | **Access** | 6 | DepartmentAccessDeniedException, ResourceOwnershipException, TargetUserNotInDepartmentException, ClientAccessDeniedException, PortfolioNotAssignedException, InvalidCollaboratorException |
 
-**Total: 61 custom exceptions refactorizadas**
+**Total: 67 custom exceptions refactorizadas**
 
 ---
 
@@ -306,6 +306,8 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 | 102 | `InvoiceAmountExceedsOrderException` | 400 | Monto excede disponible |
 | 103 | `InvoiceDataInvalidException` | 400 | Datos inválidos (lógica negocio) |
 | 104 | `InvoiceCreationFailedException` | 500 | Error al crear |
+| 105 | `InvoiceAnnulledException` | 409 | Editar o anular una factura ya anulada |
+| 106 | `InvoiceCurrencyMismatchException` | 400 | Moneda distinta a la de la OC |
 
 **Importa y reutiliza:**
 - `QuoteNotFoundException` desde quotes.exceptions
@@ -330,6 +332,10 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 | 112 | `PoNumberAlreadyExistsException` | 409 | Número duplicado (REUTILIZABLE) |
 | 113 | `OrderDataInvalidException` | 400 | Datos inválidos (lógica negocio) |
 | 114 | `OrderCreationFailedException` | 500 | Error al crear |
+| 115 | `OrderAnnulledException` | 409 | Editar, anular o facturar una OC anulada |
+| 116 | `OrderHasActiveInvoicesException` | 409 | Anular o cambiar la moneda de una OC con facturas vigentes |
+| 117 | `OrderAmountBelowInvoicedException` | 400 | Monto de la OC menor a lo facturado |
+| 118 | `QuoteHasActiveOrderException` | 409 | La cotización ya tiene una OC vigente |
 
 **Importa y reutiliza:**
 - `QuoteNotFoundException` desde quotes.exceptions

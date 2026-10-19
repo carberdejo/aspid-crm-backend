@@ -1,7 +1,18 @@
-import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Query,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
+import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { QueryInvoiceDto } from './dto/query-invoice.dto';
+import { AnnulDocumentDto } from 'src/orders/dto/annul-document.dto';
 import { CurrentUser } from 'src/auth/decorators';
 import { User } from 'src/users/entities';
 
@@ -27,13 +38,22 @@ export class InvoicesController {
     return this.invoicesService.findOne(+id, user);
   }
 
-  // @Patch(':id')
-  // update(@Param('id') id: string, @Body() updateInvoiceDto: UpdateInvoiceDto) {
-  //   return this.invoicesService.update(+id, updateInvoiceDto);
-  // }
+  @Patch(':id')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateInvoiceDto: UpdateInvoiceDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.invoicesService.update(id, updateInvoiceDto, user);
+  }
 
-  // @Delete(':id')
-  // remove(@Param('id') id: string) {
-  //   return this.invoicesService.remove(+id);
-  // }
+  // Anular en lugar de eliminar: el número de la factura queda reservado
+  @Patch(':id/annul')
+  annul(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() annulDto: AnnulDocumentDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.invoicesService.annul(id, annulDto, user);
+  }
 }
