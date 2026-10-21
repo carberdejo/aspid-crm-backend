@@ -14,9 +14,10 @@ export class CreateQuoteDto {
   @IsNotEmpty()
   quoteNumber: string;
 
+  // Solo lo considera un admin; para un usuario se toma del token
   @IsNumber()
-  @IsNotEmpty()
-  userId: number;
+  @IsOptional()
+  userId?: number;
 
   @IsNumber()
   @IsNotEmpty()

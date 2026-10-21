@@ -1,0 +1,89 @@
+import { HttpStatus } from '@nestjs/common';
+import { ApiException } from '../exceptions/api.exception';
+
+/**
+ * El usuario intenta operar en un área a la que no pertenece
+ */
+export class DepartmentAccessDeniedException extends ApiException {
+  constructor(departmentId: number) {
+    super(
+      130,
+      `No perteneces al área con ID ${departmentId}`,
+      undefined,
+      HttpStatus.FORBIDDEN,
+    );
+  }
+}
+
+/**
+ * El usuario intenta ver o modificar un registro que no le pertenece
+ */
+export class ResourceOwnershipException extends ApiException {
+  constructor(resource: string, id: number) {
+    super(
+      131,
+      `No tienes permisos sobre ${resource} con ID ${id}`,
+      undefined,
+      HttpStatus.FORBIDDEN,
+    );
+  }
+}
+
+/**
+ * El admin intenta registrar una actividad a nombre de un usuario
+ * que no existe, está inactivo o no pertenece al área indicada
+ */
+export class TargetUserNotInDepartmentException extends ApiException {
+  constructor(userId: number, departmentId: number) {
+    super(
+      132,
+      `El usuario con ID ${userId} no está activo o no pertenece al área con ID ${departmentId}`,
+      undefined,
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+}
+
+/**
+ * El usuario intenta operar con un cliente fuera de sus carteras
+ * y sin una excepción de acceso activa
+ */
+export class ClientAccessDeniedException extends ApiException {
+  constructor(clientId: number) {
+    super(
+      133,
+      `No tienes acceso al cliente con ID ${clientId}`,
+      undefined,
+      HttpStatus.FORBIDDEN,
+    );
+  }
+}
+
+/**
+ * El usuario intenta usar una cartera a la que no está asignado
+ */
+export class PortfolioNotAssignedException extends ApiException {
+  constructor(portfolioId: number) {
+    super(
+      134,
+      `No perteneces a la cartera con ID ${portfolioId}`,
+      undefined,
+      HttpStatus.FORBIDDEN,
+    );
+  }
+}
+
+/**
+ * El colaborador de una cotización no está activo, no pertenece al área
+ * o es el mismo dueño de la cotización
+ */
+export class InvalidCollaboratorException extends ApiException {
+  constructor(collaboratorId: number, departmentId: number) {
+    super(
+      135,
+      `El colaborador con ID ${collaboratorId} debe estar activo, pertenecer al área con ID ${departmentId} y ser distinto del responsable`,
+      undefined,
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+}

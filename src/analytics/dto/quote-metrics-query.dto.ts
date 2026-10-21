@@ -1,17 +1,3 @@
-import { Type } from 'class-transformer';
-import { IsOptional, IsDateString, IsNumber } from 'class-validator';
+import { MetricsQueryDto } from './metrics-query.dto';
 
-export class QuoteMetricsQueryDto {
-  @IsOptional()
-  @IsDateString()
-  startDate?: string;
-
-  @IsOptional()
-  @IsDateString()
-  endDate?: string;
-
-  @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  userId: number;
-}
+export class QuoteMetricsQueryDto extends MetricsQueryDto {}

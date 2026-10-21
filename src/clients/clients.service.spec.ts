@@ -1,12 +1,26 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
+import { Brackets } from 'typeorm';
 import { ClientsService } from './clients.service';
 import { Client, ContactClient } from './entities';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { CreateContactClientDto } from './dto';
+import { QueryClientDto } from './dto/query-client.dto';
 import { ApiException } from 'src/common/exceptions/api.exception';
+import { ClientAccessService } from 'src/common/access/client-access.service';
+import {
+  ClientAccessDeniedException,
+  PortfolioNotAssignedException,
+} from 'src/common/access/access.exceptions';
+import { Portfolio } from 'src/portfolios/entities/portfolio.entity';
+import { IndustrySegment } from 'src/catalogs/entities/industry-segment.entity';
+import { User } from 'src/users/entities';
+import { Role } from 'src/users/interfaces';
+
+const employee = { id: '5', role: Role.USER } as unknown as User;
+const admin = { id: '1', role: Role.ADMIN } as unknown as User;
 
 describe('ClientsService', () => {
   let service: ClientsService;
@@ -27,9 +41,50 @@ describe('ClientsService', () => {
     save: jest.fn(),
   };
 
-  const mockConfigService = {
-    get: jest.fn(),
+  // Las reglas de acceso tienen su propio spec: aquí solo importa que se apliquen
+  const mockClientAccessService = {
+    applyClientScope: jest.fn(),
+    assertCanAccessClient: jest.fn(),
+    assertPortfolioAssigned: jest.fn(),
+    // Por defecto el alcance es el del usuario autenticado
+    resolveScopeUser: jest.fn((user: unknown) => Promise.resolve(user)),
   };
+
+  const createClientDto = {
+    ruc: '20123456789',
+    businessName: 'Test Company SAC',
+    commercialName: 'Test Company',
+    address: 'Av. Test 123',
+    segmentId: 1,
+    portfolioId: 10,
+  } as CreateClientDto;
+
+  const contactData: CreateContactClientDto = {
+    clientId: 1,
+    firstName: 'John',
+    lastName: 'Doe',
+    position: 'Manager',
+    phone: '987654321',
+    countryCode: '51',
+    email: 'john.doe@test.com',
+  };
+
+  const buildListQueryBuilder = (result: [unknown[], number]) => ({
+    leftJoin: jest.fn().mockReturnThis(),
+    addSelect: jest.fn().mockReturnThis(),
+    loadRelationCountAndMap: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
+    take: jest.fn().mockReturnThis(),
+    getManyAndCount: jest.fn().mockResolvedValue(result),
+  });
+
+  const buildDetailQueryBuilder = (client: unknown) => ({
+    leftJoinAndSelect: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    getOne: jest.fn().mockResolvedValue(client),
+  });
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -43,10 +98,10 @@ describe('ClientsService', () => {
           provide: getRepositoryToken(ContactClient),
           useValue: mockContactClientRepository,
         },
-        {
-          provide: ConfigService,
-          useValue: mockConfigService,
-        },
+        { provide: getRepositoryToken(IndustrySegment), useValue: {} },
+        { provide: getRepositoryToken(Portfolio), useValue: {} },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+        { provide: ClientAccessService, useValue: mockClientAccessService },
       ],
     }).compile();
 
@@ -59,155 +114,99 @@ describe('ClientsService', () => {
 
   describe('create', () => {
     it('should create a client successfully', async () => {
-      // ARRANGE: Setup data and mocks
-      const createClientDto: CreateClientDto = {
-        ruc: '20123456789',
-        businessName: 'Test Company SAC',
-        commercialName: 'Test Company',
-        address: 'Av. Test 123',
-      };
-
-      const savedClient = {
-        id: 1,
-        ...createClientDto,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
+      // ARRANGE
+      const savedClient = { id: 1, ...createClientDto };
       mockClientRepository.findOneBy.mockResolvedValue(null);
       mockClientRepository.create.mockReturnValue(createClientDto);
       mockClientRepository.save.mockResolvedValue(savedClient);
 
-      // ACT: Execute method
-      const result = await service.create(createClientDto);
+      // ACT
+      const result = await service.create(createClientDto, employee);
 
-      // ASSERT: Verify results
+      // ASSERT
       expect(result.data.message).toContain('exitosamente');
       expect(result.data.item).toEqual(savedClient);
-      expect(mockClientRepository.findOneBy).toHaveBeenCalledWith({
-        ruc: createClientDto.ruc,
-      });
-      expect(mockClientRepository.create).toHaveBeenCalledWith(createClientDto);
-      expect(mockClientRepository.save).toHaveBeenCalled();
+      expect(
+        mockClientAccessService.assertPortfolioAssigned,
+      ).toHaveBeenCalledWith(employee, 10);
+    });
+
+    it('should reject a client in a portfolio not assigned to the user', async () => {
+      // ARRANGE
+      mockClientAccessService.assertPortfolioAssigned.mockRejectedValueOnce(
+        new PortfolioNotAssignedException(10),
+      );
+
+      // ACT & ASSERT
+      await expect(service.create(createClientDto, employee)).rejects.toThrow(
+        PortfolioNotAssignedException,
+      );
+      expect(mockClientRepository.save).not.toHaveBeenCalled();
     });
 
     it('should throw ApiException when RUC already exists', async () => {
-      // ARRANGE: Setup data and mocks
-      const createClientDto: CreateClientDto = {
-        ruc: '20123456789',
-        businessName: 'Test Company SAC',
-        commercialName: 'Test Company',
-        address: 'Av. Test 123',
-      };
+      mockClientRepository.findOneBy.mockResolvedValue({
+        id: 1,
+        ruc: createClientDto.ruc,
+      });
 
-      const existingClient = { id: 1, ruc: createClientDto.ruc };
-      mockClientRepository.findOneBy.mockResolvedValue(existingClient);
-
-      // ACT & ASSERT: Execute and verify error
-      await expect(service.create(createClientDto)).rejects.toThrow(
+      await expect(service.create(createClientDto, employee)).rejects.toThrow(
         ApiException,
       );
       expect(mockClientRepository.save).not.toHaveBeenCalled();
     });
 
-    it('should handle database errors', async () => {
-      // ARRANGE: Setup data and mocks
-      const createClientDto: CreateClientDto = {
-        ruc: '20123456789',
-        businessName: 'Test Company SAC',
-        commercialName: 'Test Company',
-        address: 'Av. Test 123',
-      };
-
+    it('should propagate database errors', async () => {
       mockClientRepository.findOneBy.mockResolvedValue(null);
       mockClientRepository.create.mockReturnValue(createClientDto);
       mockClientRepository.save.mockRejectedValue(new Error('Database error'));
 
-      // ACT & ASSERT: Execute and verify error
-      await expect(service.create(createClientDto)).rejects.toThrow(
-        ApiException,
+      await expect(service.create(createClientDto, employee)).rejects.toThrow(
+        'Database error',
       );
     });
   });
 
+  // Solo el admin llega aquí: el controlador restringe PATCH /clients/:id
   describe('update', () => {
+    const existingClient = {
+      id: 1,
+      ruc: '20123456789',
+      businessName: 'Old Company SAC',
+    };
+
     it('should update a client successfully', async () => {
-      // ARRANGE: Setup data and mocks
-      const clientId = 1;
+      // ARRANGE
       const updateClientDto: UpdateClientDto = {
         businessName: 'Updated Company SAC',
-        address: 'Av. Updated 456',
       };
-
-      const existingClient = {
-        id: clientId,
-        ruc: '20123456789',
-        businessName: 'Old Company SAC',
-        commercialName: 'Old Company',
-        address: 'Av. Old 123',
-      };
-
-      const updatedClient = {
-        ...existingClient,
-        ...updateClientDto,
-      };
-
+      const updatedClient = { ...existingClient, ...updateClientDto };
       mockClientRepository.findOneBy.mockResolvedValueOnce(existingClient);
       mockClientRepository.save.mockResolvedValue(updatedClient);
 
-      // ACT: Execute method
-      const result = await service.update(clientId, updateClientDto);
+      // ACT
+      const result = await service.update(1, updateClientDto);
 
-      // ASSERT: Verify results
+      // ASSERT
       expect(result.message).toContain('actualizado exitosamente');
       expect(result.data).toEqual(updatedClient);
-      expect(mockClientRepository.findOneBy).toHaveBeenCalledWith({
-        id: clientId,
-      });
-      expect(mockClientRepository.save).toHaveBeenCalled();
     });
 
     it('should throw ApiException when client not found', async () => {
-      // ARRANGE: Setup data and mocks
-      const clientId = 999;
-      const updateClientDto: UpdateClientDto = {
-        businessName: 'Updated Company SAC',
-      };
-
       mockClientRepository.findOneBy.mockResolvedValue(null);
 
-      // ACT & ASSERT: Execute and verify error
-      await expect(service.update(clientId, updateClientDto)).rejects.toThrow(
+      await expect(service.update(999, { businessName: 'X' })).rejects.toThrow(
         ApiException,
       );
       expect(mockClientRepository.save).not.toHaveBeenCalled();
     });
 
     it('should throw ApiException when updating to duplicate RUC', async () => {
-      // ARRANGE: Setup data and mocks
-      const clientId = 1;
-      const updateClientDto: UpdateClientDto = {
-        ruc: '20999888777',
-      };
-
-      const existingClient = {
-        id: clientId,
-        ruc: '20123456789',
-        businessName: 'Test Company SAC',
-      };
-
-      const duplicateClient = {
-        id: 2,
-        ruc: '20999888777',
-        businessName: 'Another Company SAC',
-      };
-
       mockClientRepository.findOneBy
         .mockResolvedValueOnce(existingClient)
-        .mockResolvedValueOnce(duplicateClient);
+        .mockResolvedValueOnce({ id: 2, ruc: '20999888777' });
 
-      // ACT & ASSERT: Execute and verify error
-      await expect(service.update(clientId, updateClientDto)).rejects.toThrow(
+      await expect(service.update(1, { ruc: '20999888777' })).rejects.toThrow(
         ApiException,
       );
       expect(mockClientRepository.save).not.toHaveBeenCalled();
@@ -215,199 +214,169 @@ describe('ClientsService', () => {
   });
 
   describe('findAll', () => {
-    it('should return paginated clients', async () => {
-      // ARRANGE: Setup data and mocks
-      const query = { limit: 10, offset: 0 };
+    it('should return paginated clients within the user scope', async () => {
+      // ARRANGE
       const clients = [
         { id: 1, ruc: '20123456789', businessName: 'Company 1' },
         { id: 2, ruc: '20987654321', businessName: 'Company 2' },
       ];
-      const total = 2;
+      const qb = buildListQueryBuilder([clients, 2]);
+      mockClientRepository.createQueryBuilder.mockReturnValue(qb);
 
-      const mockQueryBuilder = {
-        loadRelationCountAndMap: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        take: jest.fn().mockReturnThis(),
-        getManyAndCount: jest.fn().mockResolvedValue([clients, total]),
-      };
+      // ACT
+      const result = await service.findAll(
+        { limit: 10, offset: 0 } as QueryClientDto,
+        employee,
+      );
 
-      mockClientRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
-
-      // ACT: Execute method
-      const result = await service.findAll(query);
-
-      // ASSERT: Verify results
-      expect(result.data.items).toEqual(clients);
-      expect(result.data.total).toBe(total);
-      expect(result.data.limit).toBe(10);
-      expect(result.data.offset).toBe(0);
-      expect(mockClientRepository.createQueryBuilder).toHaveBeenCalledWith(
+      // ASSERT
+      expect(result.data).toEqual({
+        items: clients,
+        total: 2,
+        limit: 10,
+        offset: 0,
+      });
+      expect(mockClientAccessService.applyClientScope).toHaveBeenCalledWith(
+        qb,
         'client',
+        employee,
+      );
+      expect(
+        mockClientAccessService.assertPortfolioAssigned,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should apply the scope of the user requested by the admin', async () => {
+      // ARRANGE: el admin pide los clientes que puede usar el empleado
+      const qb = buildListQueryBuilder([[], 0]);
+      mockClientRepository.createQueryBuilder.mockReturnValue(qb);
+      mockClientAccessService.resolveScopeUser.mockResolvedValueOnce(employee);
+
+      // ACT
+      await service.findAll(
+        { userId: 5, portfolioId: 10 } as QueryClientDto,
+        admin,
+      );
+
+      // ASSERT: cartera y alcance se validan como el empleado
+      expect(mockClientAccessService.resolveScopeUser).toHaveBeenCalledWith(
+        admin,
+        5,
+      );
+      expect(
+        mockClientAccessService.assertPortfolioAssigned,
+      ).toHaveBeenCalledWith(employee, 10);
+      expect(mockClientAccessService.applyClientScope).toHaveBeenCalledWith(
+        qb,
+        'client',
+        employee,
       );
     });
 
-    it('should filter by name', async () => {
-      // ARRANGE: Setup data and mocks
-      const query = { name: 'Test', limit: 10, offset: 0 };
-      const clients = [
-        { id: 1, ruc: '20123456789', businessName: 'Test Company' },
-      ];
+    it('should search by name or RUC with a single term', async () => {
+      const qb = buildListQueryBuilder([[], 0]);
+      mockClientRepository.createQueryBuilder.mockReturnValue(qb);
 
-      const mockQueryBuilder = {
-        loadRelationCountAndMap: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        take: jest.fn().mockReturnThis(),
-        getManyAndCount: jest.fn().mockResolvedValue([clients, 1]),
-      };
+      await service.findAll(
+        { term: '2012', limit: 10, offset: 0 } as QueryClientDto,
+        employee,
+      );
 
-      mockClientRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
-
-      // ACT: Execute method
-      const result = await service.findAll(query);
-
-      // ASSERT: Verify results
-      expect(result.data.items).toEqual(clients);
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalled();
+      expect(qb.andWhere).toHaveBeenCalledWith(expect.any(Brackets));
     });
 
-    it('should filter by RUC', async () => {
-      // ARRANGE: Setup data and mocks
-      const query = { ruc: '20123456789', limit: 10, offset: 0 };
-      const clients = [
-        { id: 1, ruc: '20123456789', businessName: 'Test Company' },
-      ];
-
-      const mockQueryBuilder = {
-        loadRelationCountAndMap: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        take: jest.fn().mockReturnThis(),
-        getManyAndCount: jest.fn().mockResolvedValue([clients, 1]),
-      };
-
-      mockClientRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
-
-      // ACT: Execute method
-      const result = await service.findAll(query);
-
-      // ASSERT: Verify results
-      expect(result.data.items).toEqual(clients);
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
-        'client.ruc = :ruc',
-        { ruc: query.ruc },
+    it('should only allow filtering by a portfolio assigned to the user', async () => {
+      // ARRANGE
+      mockClientRepository.createQueryBuilder.mockReturnValue(
+        buildListQueryBuilder([[], 0]),
       );
+      mockClientAccessService.assertPortfolioAssigned.mockRejectedValueOnce(
+        new PortfolioNotAssignedException(99),
+      );
+
+      // ACT & ASSERT
+      await expect(
+        service.findAll(
+          { portfolioId: 99, limit: 10, offset: 0 } as QueryClientDto,
+          employee,
+        ),
+      ).rejects.toThrow(PortfolioNotAssignedException);
     });
   });
 
   describe('createContact', () => {
     it('should create a contact successfully', async () => {
-      // ARRANGE: Setup data and mocks
-      const contactData: CreateContactClientDto = {
-        clientId: 1,
-        firstName: 'John',
-        lastName: 'Doe',
-        position: 'Manager',
-        phone: '987654321',
-      };
-
-      const client = { id: 1, ruc: '20123456789', businessName: 'Test Co' };
-      const savedContact = {
-        id: 1,
-        ...contactData,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
+      // ARRANGE
+      const client = { id: 1, portfolioId: 10 };
+      const savedContact = { id: 1, ...contactData };
       mockClientRepository.findOneBy.mockResolvedValue(client);
       mockContactClientRepository.create.mockReturnValue(contactData);
       mockContactClientRepository.save.mockResolvedValue(savedContact);
 
-      // ACT: Execute method
-      const result = await service.createContact(contactData);
+      // ACT
+      const result = await service.createContact(contactData, employee);
 
-      // ASSERT: Verify results
+      // ASSERT
       expect(result.data.message).toContain('exitosamente');
       expect(result.data.item).toEqual(savedContact);
-      expect(mockClientRepository.findOneBy).toHaveBeenCalledWith({
-        id: contactData.clientId,
-      });
-      expect(mockContactClientRepository.create).toHaveBeenCalledWith(
-        contactData,
+      expect(
+        mockClientAccessService.assertCanAccessClient,
+      ).toHaveBeenCalledWith(employee, client);
+    });
+
+    it('should reject a contact for a client without access', async () => {
+      mockClientRepository.findOneBy.mockResolvedValue({ id: 1 });
+      mockClientAccessService.assertCanAccessClient.mockRejectedValueOnce(
+        new ClientAccessDeniedException(1),
       );
-      expect(mockContactClientRepository.save).toHaveBeenCalled();
+
+      await expect(
+        service.createContact(contactData, employee),
+      ).rejects.toThrow(ClientAccessDeniedException);
+      expect(mockContactClientRepository.save).not.toHaveBeenCalled();
     });
 
     it('should throw ApiException when client not found', async () => {
-      // ARRANGE: Setup data and mocks
-      const contactData: CreateContactClientDto = {
-        clientId: 999,
-        firstName: 'John',
-        lastName: 'Doe',
-        position: 'Manager',
-        phone: '987654321',
-      };
-
       mockClientRepository.findOneBy.mockResolvedValue(null);
 
-      // ACT & ASSERT: Execute and verify error
-      await expect(service.createContact(contactData)).rejects.toThrow(
-        ApiException,
-      );
+      await expect(
+        service.createContact({ ...contactData, clientId: 999 }, employee),
+      ).rejects.toThrow(ApiException);
       expect(mockContactClientRepository.save).not.toHaveBeenCalled();
     });
   });
 
   describe('findClientContacts', () => {
     it('should return all contacts for a client', async () => {
-      // ARRANGE: Setup data and mocks
-      const clientId = 1;
-      const contacts = [
-        {
-          id: 1,
-          clientId,
-          firstName: 'John',
-          lastName: 'Doe',
-          position: 'Manager',
-          phone: '987654321',
-        },
-        {
-          id: 2,
-          clientId,
-          firstName: 'Jane',
-          lastName: 'Doe',
-          position: 'Director',
-          phone: '987654322',
-        },
-      ];
-
-      const client = { id: clientId, ruc: '20123456789' };
-      mockClientRepository.findOneBy.mockResolvedValue(client);
+      // ARRANGE
+      const contacts = [{ id: 1, clientId: 1, firstName: 'John' }];
+      mockClientRepository.findOneBy.mockResolvedValue({ id: 1 });
       mockContactClientRepository.find.mockResolvedValue(contacts);
 
-      // ACT: Execute method
-      const result = await service.findClientContacts(clientId);
+      // ACT
+      const result = await service.findClientContacts(1, employee);
 
-      // ASSERT: Verify results
-      expect(result.message).toContain('exitosamente');
+      // ASSERT
       expect(result.data).toEqual(contacts);
-      expect(result.total).toBe(contacts.length);
-      expect(mockClientRepository.findOneBy).toHaveBeenCalledWith({
-        id: clientId,
-      });
-      expect(mockContactClientRepository.find).toHaveBeenCalledWith({
-        where: { clientId },
-      });
+      expect(result.total).toBe(1);
+    });
+
+    it('should reject the contacts of a client without access', async () => {
+      mockClientRepository.findOneBy.mockResolvedValue({ id: 1 });
+      mockClientAccessService.assertCanAccessClient.mockRejectedValueOnce(
+        new ClientAccessDeniedException(1),
+      );
+
+      await expect(service.findClientContacts(1, employee)).rejects.toThrow(
+        ClientAccessDeniedException,
+      );
+      expect(mockContactClientRepository.find).not.toHaveBeenCalled();
     });
 
     it('should throw ApiException when client not found', async () => {
-      // ARRANGE: Setup data and mocks
-      const clientId = 999;
       mockClientRepository.findOneBy.mockResolvedValue(null);
 
-      // ACT & ASSERT: Execute and verify error
-      await expect(service.findClientContacts(clientId)).rejects.toThrow(
+      await expect(service.findClientContacts(999, employee)).rejects.toThrow(
         ApiException,
       );
       expect(mockContactClientRepository.find).not.toHaveBeenCalled();
@@ -415,102 +384,87 @@ describe('ClientsService', () => {
   });
 
   describe('findOneContact', () => {
-    it('should return a contact by ID', async () => {
-      // ARRANGE: Setup data and mocks
-      const contactId = 1;
-      const contact = {
-        id: contactId,
-        clientId: 1,
-        firstName: 'John',
-        lastName: 'Doe',
-        position: 'Manager',
-        phone: '987654321',
-      };
+    const contact = {
+      id: 1,
+      clientId: 1,
+      firstName: 'John',
+      client: { id: 1, portfolioId: 10 },
+    };
 
+    it('should return a contact by ID', async () => {
       mockContactClientRepository.findOne.mockResolvedValue(contact);
 
-      // ACT: Execute method
-      const result = await service.findOneContact(contactId);
+      const result = await service.findOneContact(1, employee);
 
-      // ASSERT: Verify results
-      expect(result.message).toContain('exitosamente');
       expect(result.data).toEqual(contact);
-      expect(mockContactClientRepository.findOne).toHaveBeenCalledWith({
-        where: { id: contactId },
-        relations: ['client'],
-      });
+      expect(
+        mockClientAccessService.assertCanAccessClient,
+      ).toHaveBeenCalledWith(employee, contact.client);
+    });
+
+    it('should reject a contact of a client without access', async () => {
+      mockContactClientRepository.findOne.mockResolvedValue(contact);
+      mockClientAccessService.assertCanAccessClient.mockRejectedValueOnce(
+        new ClientAccessDeniedException(1),
+      );
+
+      await expect(service.findOneContact(1, employee)).rejects.toThrow(
+        ClientAccessDeniedException,
+      );
     });
 
     it('should throw ApiException when contact not found', async () => {
-      // ARRANGE: Setup data and mocks
-      const contactId = 999;
       mockContactClientRepository.findOne.mockResolvedValue(null);
 
-      // ACT & ASSERT: Execute and verify error
-      await expect(service.findOneContact(contactId)).rejects.toThrow(
+      await expect(service.findOneContact(999, employee)).rejects.toThrow(
         ApiException,
       );
     });
   });
 
   describe('findByID', () => {
+    const client = { id: 1, portfolioId: 10, contacts: [] };
+
     it('should return a client by ID with contacts', async () => {
-      // ARRANGE: Setup data and mocks
-      const id = 1;
-      const client = {
-        id,
-        ruc: '20123456789',
-        businessName: 'Test Company SAC',
-        contacts: [
-          {
-            id: 1,
-            firstName: 'John',
-            lastName: 'Doe',
-            position: 'Manager',
-            phone: '987654321',
-          },
-        ],
-      };
+      // ARRANGE
+      const qb = buildDetailQueryBuilder(client);
+      mockClientRepository.createQueryBuilder.mockReturnValue(qb);
 
-      const mockQueryBuilder = {
-        leftJoinAndSelect: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        getOne: jest.fn().mockResolvedValue(client),
-      };
+      // ACT
+      const result = await service.findByID(1, employee);
 
-      mockClientRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
-
-      // ACT: Execute method
-      const result = await service.findByID(id);
-
-      // ASSERT: Verify results
+      // ASSERT
       expect(result).toEqual(client);
-      expect(mockClientRepository.createQueryBuilder).toHaveBeenCalledWith(
-        'client',
-      );
-      expect(mockQueryBuilder.leftJoinAndSelect).toHaveBeenCalledWith(
+      expect(qb.leftJoinAndSelect).toHaveBeenCalledWith(
         'client.contacts',
         'contacts',
       );
-      expect(mockQueryBuilder.where).toHaveBeenCalledWith('client.id = :id', {
-        id,
-      });
+      expect(
+        mockClientAccessService.assertCanAccessClient,
+      ).toHaveBeenCalledWith(employee, client);
+    });
+
+    it('should reject a client without access', async () => {
+      mockClientRepository.createQueryBuilder.mockReturnValue(
+        buildDetailQueryBuilder(client),
+      );
+      mockClientAccessService.assertCanAccessClient.mockRejectedValueOnce(
+        new ClientAccessDeniedException(1),
+      );
+
+      await expect(service.findByID(1, employee)).rejects.toThrow(
+        ClientAccessDeniedException,
+      );
     });
 
     it('should throw ApiException when client not found', async () => {
-      // ARRANGE: Setup data and mocks
-      const id = 999;
+      mockClientRepository.createQueryBuilder.mockReturnValue(
+        buildDetailQueryBuilder(null),
+      );
 
-      const mockQueryBuilder = {
-        leftJoinAndSelect: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        getOne: jest.fn().mockResolvedValue(null),
-      };
-
-      mockClientRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
-
-      // ACT & ASSERT: Execute and verify error
-      await expect(service.findByID(id)).rejects.toThrow(ApiException);
+      await expect(service.findByID(999, employee)).rejects.toThrow(
+        ApiException,
+      );
     });
   });
 });

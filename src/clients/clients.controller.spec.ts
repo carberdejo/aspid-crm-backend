@@ -5,6 +5,8 @@ import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { CreateContactClientDto } from './dto';
 import { QueryClientDto } from './dto/query-client.dto';
+import { User } from 'src/users/entities';
+import { Role } from 'src/users/interfaces';
 
 describe('ClientsController', () => {
   let controller: ClientsController;
@@ -21,15 +23,12 @@ describe('ClientsController', () => {
     findOneContact: jest.fn(),
   };
 
+  const user = { id: '5', role: Role.USER } as unknown as User;
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ClientsController],
-      providers: [
-        {
-          provide: ClientsService,
-          useValue: mockClientsService,
-        },
-      ],
+      providers: [{ provide: ClientsService, useValue: mockClientsService }],
     }).compile();
 
     controller = module.get<ClientsController>(ClientsController);
@@ -39,321 +38,67 @@ describe('ClientsController', () => {
     jest.clearAllMocks();
   });
 
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
+  // El alcance por cartera lo aplica el servicio: el controlador debe pasarle el usuario
+  it('should pass the user when creating a client', async () => {
+    // ARRANGE
+    const dto = { ruc: '20123456789', portfolioId: 10 } as CreateClientDto;
+    mockClientsService.create.mockResolvedValue({ data: { id: 1 } });
+
+    // ACT
+    const result = await controller.create(dto, user);
+
+    // ASSERT
+    expect(result).toEqual({ data: { id: 1 } });
+    expect(mockClientsService.create).toHaveBeenCalledWith(dto, user);
   });
 
-  describe('create', () => {
-    it('should create a new client', async () => {
-      // ARRANGE: Setup data and mocks
-      const createClientDto: CreateClientDto = {
-        ruc: '20123456789',
-        businessName: 'Test Company SAC',
-        commercialName: 'Test Company',
-        address: 'Av. Test 123',
-      };
+  it('should pass the user when listing clients', async () => {
+    const query = { limit: 10, offset: 0 } as QueryClientDto;
 
-      const expectedResponse = {
-        message: 'Cliente creado exitosamente',
-        data: { id: 1, ...createClientDto },
-      };
+    await controller.findAll(query, user);
 
-      mockClientsService.create.mockResolvedValue(expectedResponse);
-
-      // ACT: Execute method
-      const result = await controller.create(createClientDto);
-
-      // ASSERT: Verify results
-      expect(result).toEqual(expectedResponse);
-      expect(mockClientsService.create).toHaveBeenCalledWith(createClientDto);
-      expect(mockClientsService.create).toHaveBeenCalledTimes(1);
-    });
+    expect(mockClientsService.findAll).toHaveBeenCalledWith(query, user);
   });
 
-  describe('update', () => {
-    it('should update a client', async () => {
-      // ARRANGE: Setup data and mocks
-      const clientId = 1;
-      const updateClientDto: UpdateClientDto = {
-        businessName: 'Updated Company SAC',
-        address: 'Av. Updated 456',
-      };
+  it('should pass the user when reading a client', async () => {
+    await controller.findOne(1, user);
 
-      const expectedResponse = {
-        message: 'Cliente actualizado exitosamente',
-        data: { id: clientId, ...updateClientDto },
-      };
-
-      mockClientsService.update.mockResolvedValue(expectedResponse);
-
-      // ACT: Execute method
-      const result = await controller.update(clientId, updateClientDto);
-
-      // ASSERT: Verify results
-      expect(result).toEqual(expectedResponse);
-      expect(mockClientsService.update).toHaveBeenCalledWith(
-        clientId,
-        updateClientDto,
-      );
-      expect(mockClientsService.update).toHaveBeenCalledTimes(1);
-    });
+    expect(mockClientsService.findByID).toHaveBeenCalledWith(1, user);
   });
 
-  describe('findAll', () => {
-    it('should return paginated clients', async () => {
-      // ARRANGE: Setup data and mocks
-      const query: QueryClientDto = { limit: 10, offset: 0 };
-      const expectedResponse = {
-        message: 'Clientes obtenidos exitosamente',
-        data: [
-          {
-            id: 1,
-            ruc: '20123456789',
-            businessName: 'Company 1',
-            commercialName: 'Co 1',
-            address: 'Address 1',
-          },
-          {
-            id: 2,
-            ruc: '20987654321',
-            businessName: 'Company 2',
-            commercialName: 'Co 2',
-            address: 'Address 2',
-          },
-        ],
-        total: 2,
-        limit: 10,
-        offset: 0,
-      };
+  it('should pass the user when reading the contacts of a client', async () => {
+    await controller.findClientContacts(1, user);
 
-      mockClientsService.findAll.mockResolvedValue(expectedResponse);
-
-      // ACT: Execute method
-      const result = await controller.findAll(query);
-
-      // ASSERT: Verify results
-      expect(result).toEqual(expectedResponse);
-      expect(mockClientsService.findAll).toHaveBeenCalledWith(query);
-      expect(mockClientsService.findAll).toHaveBeenCalledTimes(1);
-    });
-
-    it('should filter clients by name', async () => {
-      // ARRANGE: Setup data and mocks
-      const query: QueryClientDto = {
-        name: 'Test',
-        limit: 10,
-        offset: 0,
-      };
-
-      const expectedResponse = {
-        message: 'Clientes obtenidos exitosamente',
-        data: [
-          {
-            id: 1,
-            ruc: '20123456789',
-            businessName: 'Test Company SAC',
-            commercialName: 'Test Co',
-            address: 'Address 1',
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-      };
-
-      mockClientsService.findAll.mockResolvedValue(expectedResponse);
-
-      // ACT: Execute method
-      const result = await controller.findAll(query);
-
-      // ASSERT: Verify results
-      expect(result).toEqual(expectedResponse);
-      expect(mockClientsService.findAll).toHaveBeenCalledWith(query);
-    });
-
-    it('should filter clients by RUC', async () => {
-      // ARRANGE: Setup data and mocks
-      const query: QueryClientDto = {
-        ruc: '20123456789',
-        limit: 10,
-        offset: 0,
-      };
-
-      const expectedResponse = {
-        message: 'Clientes obtenidos exitosamente',
-        data: [
-          {
-            id: 1,
-            ruc: '20123456789',
-            businessName: 'Test Company SAC',
-            commercialName: 'Test Co',
-            address: 'Address 1',
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-      };
-
-      mockClientsService.findAll.mockResolvedValue(expectedResponse);
-
-      // ACT: Execute method
-      const result = await controller.findAll(query);
-
-      // ASSERT: Verify results
-      expect(result).toEqual(expectedResponse);
-      expect(mockClientsService.findAll).toHaveBeenCalledWith(query);
-    });
+    expect(mockClientsService.findClientContacts).toHaveBeenCalledWith(1, user);
   });
 
-  describe('consultaSunat', () => {
-    it('should return RUC information from SUNAT API', async () => {
-      // ARRANGE: Setup data and mocks
-      const ruc = '20123456789';
-      const expectedResponse = {
-        message: 'Información de RUC obtenida exitosamente',
-        data: {
-          ruc: '20123456789',
-          razonSocial: 'Test Company SAC',
-          direccion: 'Av. Test 123, Lima',
-        },
-      };
+  it('should pass the user when reading a contact', async () => {
+    await controller.findOneContact(3, user);
 
-      mockClientsService.consultSunatApi.mockResolvedValue(expectedResponse);
-
-      // ACT: Execute method
-      const result = await controller.consultaSunat(ruc);
-
-      // ASSERT: Verify results
-      expect(result).toEqual(expectedResponse);
-      expect(mockClientsService.consultSunatApi).toHaveBeenCalledWith(ruc);
-      expect(mockClientsService.consultSunatApi).toHaveBeenCalledTimes(1);
-    });
+    expect(mockClientsService.findOneContact).toHaveBeenCalledWith(3, user);
   });
 
-  describe('findOne', () => {
-    it('should return a client by ID', async () => {
-      // ARRANGE: Setup data and mocks
-      const id = 1;
-      const expectedResponse = {
-        id: 1,
-        ruc: '20123456789',
-        businessName: 'Test Company SAC',
-        commercialName: 'Test Co',
-        address: 'Address 1',
-        contacts: [],
-      };
+  it('should pass the user when creating a contact', async () => {
+    const dto = { clientId: 1, firstName: 'John' } as CreateContactClientDto;
 
-      mockClientsService.findByID.mockResolvedValue(expectedResponse);
+    await controller.createContact(dto, user);
 
-      // ACT: Execute method
-      const result = await controller.findOne(id);
-
-      // ASSERT: Verify results
-      expect(result).toEqual(expectedResponse);
-      expect(mockClientsService.findByID).toHaveBeenCalledWith(id);
-      expect(mockClientsService.findByID).toHaveBeenCalledTimes(1);
-    });
+    expect(mockClientsService.createContact).toHaveBeenCalledWith(dto, user);
   });
 
-  describe('createContact', () => {
-    it('should create a new contact for a client', async () => {
-      // ARRANGE: Setup data and mocks
-      const createContactDto: CreateContactClientDto = {
-        clientId: 1,
-        firstName: 'John',
-        lastName: 'Doe',
-        position: 'Manager',
-        phone: '987654321',
-      };
+  it('should update a client (admin only, see UserRoleGuard spec)', async () => {
+    const dto: UpdateClientDto = { businessName: 'Updated Company SAC' };
 
-      const expectedResponse = {
-        data: {
-          message: 'Contacto creado exitosamente',
-          item: { id: 1, ...createContactDto },
-        },
-      };
+    await controller.update(1, dto);
 
-      mockClientsService.createContact.mockResolvedValue(expectedResponse);
-
-      // ACT: Execute method
-      const result = await controller.createContact(createContactDto);
-
-      // ASSERT: Verify results
-      expect(result).toEqual(expectedResponse);
-      expect(mockClientsService.createContact).toHaveBeenCalledWith(
-        createContactDto,
-      );
-      expect(mockClientsService.createContact).toHaveBeenCalledTimes(1);
-    });
+    expect(mockClientsService.update).toHaveBeenCalledWith(1, dto);
   });
 
-  describe('findClientContacts', () => {
-    it('should return all contacts for a client', async () => {
-      // ARRANGE: Setup data and mocks
-      const clientId = 1;
-      const expectedResponse = {
-        message: 'Contactos obtenidos exitosamente',
-        data: [
-          {
-            id: 1,
-            clientId: 1,
-            firstName: 'John',
-            lastName: 'Doe',
-            position: 'Manager',
-            phone: '987654321',
-          },
-          {
-            id: 2,
-            clientId: 1,
-            firstName: 'Jane',
-            lastName: 'Doe',
-            position: 'Director',
-            phone: '987654322',
-          },
-        ],
-        total: 2,
-      };
+  it('should query SUNAT by RUC', async () => {
+    await controller.consultaSunat('20123456789');
 
-      mockClientsService.findClientContacts.mockResolvedValue(expectedResponse);
-
-      // ACT: Execute method
-      const result = await controller.findClientContacts(clientId);
-
-      // ASSERT: Verify results
-      expect(result).toEqual(expectedResponse);
-      expect(mockClientsService.findClientContacts).toHaveBeenCalledWith(
-        clientId,
-      );
-      expect(mockClientsService.findClientContacts).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('findOneContact', () => {
-    it('should return a contact by ID', async () => {
-      // ARRANGE: Setup data and mocks
-      const contactId = 1;
-      const expectedResponse = {
-        message: 'Contacto obtenido exitosamente',
-        data: {
-          id: 1,
-          clientId: 1,
-          firstName: 'John',
-          lastName: 'Doe',
-          position: 'Manager',
-          phone: '987654321',
-        },
-      };
-
-      mockClientsService.findOneContact.mockResolvedValue(expectedResponse);
-
-      // ACT: Execute method
-      const result = await controller.findOneContact(contactId);
-
-      // ASSERT: Verify results
-      expect(result).toEqual(expectedResponse);
-      expect(mockClientsService.findOneContact).toHaveBeenCalledWith(contactId);
-      expect(mockClientsService.findOneContact).toHaveBeenCalledTimes(1);
-    });
+    expect(mockClientsService.consultSunatApi).toHaveBeenCalledWith(
+      '20123456789',
+    );
   });
 });

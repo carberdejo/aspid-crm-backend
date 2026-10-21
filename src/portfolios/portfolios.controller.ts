@@ -35,9 +35,9 @@ export class PortfoliosController {
   }
 
   @Get(':id')
-  @Auth() // Cualquier usuario autenticado puede ver los detalles de una cartera
-  findOne(@Param('id') id: string) {
-    return this.portfoliosService.findOne(+id);
+  @Auth() // Admin: cualquier cartera. User: solo las suyas
+  findOne(@Param('id') id: string, @CurrentUser() currentUser: User) {
+    return this.portfoliosService.findOne(+id, currentUser);
   }
 
   @Patch(':id')

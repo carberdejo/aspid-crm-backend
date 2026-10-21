@@ -5,6 +5,7 @@ import {
   IsPositive,
   IsDateString,
   IsOptional,
+  IsEnum,
 } from 'class-validator';
 import { QuoteCurrency } from 'src/quotes/interfaces/quote-currency.enum';
 
@@ -26,7 +27,8 @@ export class CreateInvoiceDto {
   @IsNotEmpty()
   issueDate: string;
 
+  // Opcional: si se envía debe coincidir con la moneda de la OC
   @IsOptional()
-  @IsString()
+  @IsEnum(QuoteCurrency)
   currency?: QuoteCurrency;
 }

@@ -9,7 +9,7 @@ export class InvalidDateRangeException extends ApiException {
   constructor(startDate: string, endDate: string) {
     super(
       60,
-      `Rango de fechas inválido: la fecha de inicio '${startDate}' debe ser menor a la fecha de fin '${endDate}'`,
+      `Rango de fechas inválido: la fecha de inicio '${startDate}' es posterior a la fecha de fin '${endDate}'`,
       undefined,
       HttpStatus.BAD_REQUEST,
     );

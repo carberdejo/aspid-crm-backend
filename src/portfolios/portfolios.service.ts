@@ -13,6 +13,7 @@ import { CommonValidationService } from 'src/common/common-validation.service';
 import { QueryPortfolioDto } from './dto/query-portfolio.dto';
 import { User } from 'src/users/entities';
 import { Role } from 'src/users/interfaces';
+import { ClientAccessService } from 'src/common/access/client-access.service';
 
 @Injectable()
 export class PortfoliosService {
@@ -23,6 +24,7 @@ export class PortfoliosService {
     private readonly portfolioUserRepo: Repository<PortfolioUser>,
     private readonly validationService: CommonValidationService,
     private readonly dataSource: DataSource,
+    private readonly clientAccessService: ClientAccessService,
   ) {}
 
   async create(createDto: CreatePortfolioDto) {
@@ -43,7 +45,6 @@ export class PortfoliosService {
 
   // FIND ALL UNIFICADO CON BÚSQUEDA Y PAGINACIÓN
   async findAll(paginationDto: QueryPortfolioDto, currentUser: User) {
-    console.log({ currentUser });
     const { limit = 10, offset = 0, term } = paginationDto;
     const queryBuilder = this.portfolioRepo
       .createQueryBuilder('portfolio')
@@ -111,7 +112,10 @@ export class PortfoliosService {
     };
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, currentUser: User) {
+    // Un user solo puede ver el detalle (y los miembros) de sus carteras
+    await this.clientAccessService.assertPortfolioAssigned(currentUser, id);
+
     const portfolio = await this.portfolioRepo.findOne({
       where: { id },
       relations: ['users', 'users.user'], // Trae los usuarios asignados y sus datos básicos

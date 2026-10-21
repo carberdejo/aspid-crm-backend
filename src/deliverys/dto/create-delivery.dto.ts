@@ -10,13 +10,20 @@ import { Type } from 'class-transformer';
 import { DeliveryItemDto } from './delivery-item-dto';
 
 export class CreateDeliveryDto {
+  // Sin cliente: se omite o se envía 0 (se guarda como NULL)
   @IsOptional()
   @IsNumber()
   clientId?: number;
 
-  @IsNotEmpty()
+  // Solo lo considera un admin; para un usuario se toma del token
+  @IsOptional()
   @IsNumber()
-  userId: number;
+  userId?: number;
+
+  // Área en la que se registra la entrega: debe ser una de las del usuario
+  @IsNumber()
+  @IsNotEmpty()
+  departmentId: number;
 
   @IsOptional()
   @IsDateString()

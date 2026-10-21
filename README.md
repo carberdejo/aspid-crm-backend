@@ -57,6 +57,43 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
+## Migraciones
+
+El esquema de la base de datos se versiona con migraciones de TypeORM en `src/migrations`
+(`synchronize` está desactivado). La primera, `Baseline`, contiene el esquema existente al
+2026-10-06: en una base nueva lo crea y en una existente no hace nada. El repositorio
+`aspid-crm-database` guarda la infraestructura, la foto `schema/baseline.sql` y las semillas.
+
+Los comandos usan las variables `POSTGRES_*` del `.env`. La tabla de control es `public.migrations`.
+
+```bash
+# ver qué migraciones están aplicadas y cuáles faltan
+$ pnpm migration:show
+
+# aplicar las pendientes
+$ pnpm migration:run
+
+# revertir la última aplicada
+$ pnpm migration:revert
+
+# crear una migración vacía (el nombre describe el cambio)
+$ pnpm migration:create src/migrations/AddStatusToVisit
+```
+
+**Reglas:**
+
+- Nunca modificar una migración que ya se aplicó en algún entorno: crear una nueva.
+- Usar el esquema de `process.env.POSTGRES_SCHEMA` (por defecto `concar1`), como las existentes.
+- Implementar siempre `down()` para poder revertir.
+- Desplegar en este orden: **primero las migraciones, luego la nueva versión de la API**
+  (si la API espera una columna que aún no existe, sus consultas fallan).
+
+**En producción** (dentro del contenedor, con el código compilado):
+
+```bash
+$ docker compose exec <servicio-backend> pnpm migration:run:prod
+```
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.

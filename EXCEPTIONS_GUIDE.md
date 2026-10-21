@@ -90,16 +90,17 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 | 20-29 | **Users** | 5 | UsersNotFoundException, UsersEmailAlreadyExistsException, UsersCodUserAlreadyExistsException, ContactNotFoundException, UserDataInvalidException |
 | 30-39 | **Visits** | 3 | VisitNotFoundException, VisitContactNotBelongToClientException, VisitDataInvalidException |
 | 40-49 | **Departments** | 4 | DepartmentNotFoundException, DepartmentAlreadyExistsException, DepartmentInUseException, DepartmentDataInvalidException |
-| 50-59 | **Quotes** | 5 | QuoteNotFoundException, QuoteNumberAlreadyExistsException, QuoteContactNotBelongToClientException, QuoteInvalidStatusTransitionException, QuoteDataInvalidException |
+| 50-59 | **Quotes** | 6 | QuoteNotFoundException, QuoteNumberAlreadyExistsException, QuoteContactNotBelongToClientException, QuoteInvalidStatusTransitionException, QuoteDataInvalidException, QuoteNotEditableException |
 | 60-69 | **Analytics** | 3 | InvalidDateRangeException, NoDataAvailableForMetricsException, InvalidMetricsParametersException |
 | 70-79 | **Auth** | 6 | InvalidCredentialsException, InvalidRefreshTokenException, SessionNotFoundException, SessionExpiredException, InvalidTokenHashException, UserInactiveException |
 | 80-89 | **Catalogs** | 5 | SegmentCodeAlreadyExistsException, SegmentNotFoundException, SegmentAlreadyDeactivatedException, SegmentAlreadyActivatedException, SegmentDataInvalidException |
 | 90-99 | **Deliverys** | 3 | DeliveryNotFoundException, EmptyDeliveryItemsException, InvalidDeliveryDataException |
-| 100-109 | **Invoices** | 5 | InvoiceNotFoundException, InvoiceNumberAlreadyExistsException, InvoiceAmountExceedsOrderException, InvoiceDataInvalidException, InvoiceCreationFailedException |
-| 110-119 | **Orders** | 5 | PurchaseOrderNotFoundException, QuoteNotApprovedException, PoNumberAlreadyExistsException, OrderDataInvalidException, OrderCreationFailedException |
+| 100-109 | **Invoices** | 7 | InvoiceNotFoundException, InvoiceNumberAlreadyExistsException, InvoiceAmountExceedsOrderException, InvoiceDataInvalidException, InvoiceCreationFailedException, InvoiceAnnulledException, InvoiceCurrencyMismatchException |
+| 110-119 | **Orders** | 9 | PurchaseOrderNotFoundException, QuoteNotApprovedException, PoNumberAlreadyExistsException, OrderDataInvalidException, OrderCreationFailedException, OrderAnnulledException, OrderHasActiveInvoicesException, OrderAmountBelowInvoicedException, QuoteHasActiveOrderException |
 | 120-129 | **Portfolios** | 7 | PortfolioCodeAlreadyExistsException, PortfolioNotFoundException, PortfolioAlreadyDeactivatedException, PortfolioAlreadyActivatedException, EmptyPortfolioUsersException, PortfolioDataInvalidException, PortfolioUpdateFailedException |
+| 130-139 | **Access** | 6 | DepartmentAccessDeniedException, ResourceOwnershipException, TargetUserNotInDepartmentException, ClientAccessDeniedException, PortfolioNotAssignedException, InvalidCollaboratorException |
 
-**Total: 57 custom exceptions refactorizadas**
+**Total: 67 custom exceptions refactorizadas**
 
 ---
 
@@ -195,6 +196,7 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 | 52 | `QuoteContactNotBelongToClientException` | 400 | Relación inválida |
 | 53 | `QuoteInvalidStatusTransitionException` | 400 | Transición estado inválida |
 | 54 | `QuoteDataInvalidException` | 400 | Datos inválidos (lógica negocio) |
+| 55 | `QuoteNotEditableException` | 409 | Edición de cotización que no está en PENDIENTE |
 
 **Importa y reutiliza:**
 - `UsersNotFoundException` desde users.exceptions
@@ -216,7 +218,7 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 
 | Código | Nombre | HTTP | Descripción |
 |--------|--------|------|-------------|
-| 60 | `InvalidDateRangeException` | 400 | Fecha inicio >= fin |
+| 60 | `InvalidDateRangeException` | 400 | Fecha inicio > fin |
 | 61 | `NoDataAvailableForMetricsException` | 200 | Sin datos disponibles |
 | 62 | `InvalidMetricsParametersException` | 400 | Parámetros inválidos |
 
@@ -304,6 +306,8 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 | 102 | `InvoiceAmountExceedsOrderException` | 400 | Monto excede disponible |
 | 103 | `InvoiceDataInvalidException` | 400 | Datos inválidos (lógica negocio) |
 | 104 | `InvoiceCreationFailedException` | 500 | Error al crear |
+| 105 | `InvoiceAnnulledException` | 409 | Editar o anular una factura ya anulada |
+| 106 | `InvoiceCurrencyMismatchException` | 400 | Moneda distinta a la de la OC |
 
 **Importa y reutiliza:**
 - `QuoteNotFoundException` desde quotes.exceptions
@@ -328,6 +332,10 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 | 112 | `PoNumberAlreadyExistsException` | 409 | Número duplicado (REUTILIZABLE) |
 | 113 | `OrderDataInvalidException` | 400 | Datos inválidos (lógica negocio) |
 | 114 | `OrderCreationFailedException` | 500 | Error al crear |
+| 115 | `OrderAnnulledException` | 409 | Editar, anular o facturar una OC anulada |
+| 116 | `OrderHasActiveInvoicesException` | 409 | Anular o cambiar la moneda de una OC con facturas vigentes |
+| 117 | `OrderAmountBelowInvoicedException` | 400 | Monto de la OC menor a lo facturado |
+| 118 | `QuoteHasActiveOrderException` | 409 | La cotización ya tiene una OC vigente |
 
 **Importa y reutiliza:**
 - `QuoteNotFoundException` desde quotes.exceptions
@@ -368,6 +376,20 @@ Solo para reglas específicas del negocio que class-validator no puede validar:
 - Zona max 50: `@MaxLength(50)`
 - Usuarios es array: `@IsArray()`
 - Usuarios mínimo: `@ArrayMinSize(1)`
+
+### 13. ACCESS (130-139)
+**Archivo:** `src/common/access/access.exceptions.ts`
+
+| Código | Nombre | HTTP | Descripción |
+|--------|--------|------|-------------|
+| 130 | `DepartmentAccessDeniedException` | 403 | El usuario no pertenece al área (REUTILIZABLE) |
+| 131 | `ResourceOwnershipException` | 403 | El registro no pertenece al usuario (REUTILIZABLE) |
+| 132 | `TargetUserNotInDepartmentException` | 400 | El admin registra a nombre de un usuario inactivo o fuera del área |
+| 133 | `ClientAccessDeniedException` | 403 | El cliente no está en las carteras del usuario ni tiene una excepción de acceso activa |
+| 134 | `PortfolioNotAssignedException` | 403 | El usuario no está asignado a la cartera |
+| 135 | `InvalidCollaboratorException` | 400 | El colaborador de la cotización no está activo, no pertenece al área o es el mismo responsable |
+
+**Las lanza:** `AccessScopeService` (130-132 y 135, `src/common/access/access-scope.service.ts`), compartido por visits, quotes, orders, invoices y deliverys; y `ClientAccessService` (133-134, `src/common/access/client-access.service.ts`), compartido por clients, portfolios, visits, quotes y deliverys.
 
 ---
 

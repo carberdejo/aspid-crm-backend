@@ -9,6 +9,9 @@ export class PurchaseOrderMapper {
       billingStatus: po.billingStatus,
       amount: po.amount,
       currency: po.currency,
+      status: po.status,
+      annulledAt: po.annulledAt,
+      annulReason: po.annulReason,
       // Información de la Cotización
       quote: {
         id: Number(po.quote?.id),
@@ -41,7 +44,7 @@ export class PurchaseOrderMapper {
   }
 
   static toListResponse(po: PurchaseOrder) {
-    // 1. Sumamos de forma segura los montos de todas las facturas existente
+    // 1. Sumamos de forma segura los montos de las facturas (la consulta solo trae las vigentes)
     const totalInvoiced =
       po.invoices?.reduce((sum, inv) => sum + Number(inv.amount), 0) || 0;
 
@@ -65,6 +68,11 @@ export class PurchaseOrderMapper {
       billingStatus: po.billingStatus,
       amount: po.amount,
       currency: po.currency,
+      status: po.status,
+      annulledAt: po.annulledAt,
+      annulReason: po.annulReason,
+      // Dueño de la cotización: el frontend lo usa para mostrar editar/anular
+      userId: po.quote?.userId,
       // Campos de seguimiento de facturación
       invoicedAmount: Number(totalInvoiced.toFixed(2)),
       remainingAmount: remainingAmount,

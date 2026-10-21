@@ -10,7 +10,11 @@ import {
 import { UserClientExceptionsService } from './user-client-exceptions.service';
 import { CreateUserClientExceptionDto } from './dto/create-user-client-exception.dto';
 import { UpdateUserClientExceptionDto } from './dto/update-user-client-exception.dto';
+import { Auth } from 'src/auth/decorators';
+import { Role } from 'src/users/interfaces';
 
+// Dar o quitar acceso a clientes fuera de las carteras es tarea del admin
+@Auth(Role.ADMIN)
 @Controller('user-client-exceptions')
 export class UserClientExceptionsController {
   constructor(

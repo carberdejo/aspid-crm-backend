@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { DocumentStatus } from 'src/orders/interfaces/document-status.enum';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 
 export class QueryInvoiceDto extends PaginationDto {
@@ -21,4 +22,9 @@ export class QueryInvoiceDto extends PaginationDto {
   @Type(() => Number)
   @IsNumber()
   userId?: number;
+
+  // Sin filtro se listan vigentes y anuladas
+  @IsOptional()
+  @IsEnum(DocumentStatus)
+  status?: DocumentStatus;
 }

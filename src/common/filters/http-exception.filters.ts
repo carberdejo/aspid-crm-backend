@@ -47,6 +47,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
     errorResponse: ApiErrorResponse;
   } {
     let httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+    // Código de negocio (ver EXCEPTIONS_GUIDE.md). Si la excepción no trae uno,
+    // se usa el status HTTP como código.
+    let code: number | undefined;
     let message = 'Internal server error';
     let errors: any[] | null = null;
 
@@ -64,6 +67,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     else if (exception instanceof ApiException) {
       const res = exception.getResponse() as any;
       httpStatus = exception.getStatus();
+      code = exception.code;
       message = res.message || exception.message;
       errors = res.errors;
     }
@@ -89,7 +93,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     return {
       httpStatus,
       errorResponse: {
-        code: httpStatus,
+        code: code ?? httpStatus,
         message,
         errors: this.formatErrors(errors),
       },

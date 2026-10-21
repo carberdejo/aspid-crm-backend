@@ -71,3 +71,31 @@ export class InvoiceCreationFailedException extends ApiException {
     );
   }
 }
+
+/**
+ * Exception de lógica de negocio: la factura está anulada y ya no se puede modificar
+ */
+export class InvoiceAnnulledException extends ApiException {
+  constructor(invoiceNumber: string) {
+    super(
+      105,
+      `La factura '${invoiceNumber}' está anulada y no se puede modificar`,
+      undefined,
+      HttpStatus.CONFLICT,
+    );
+  }
+}
+
+/**
+ * Exception de lógica de negocio: la factura debe estar en la moneda de su OC
+ */
+export class InvoiceCurrencyMismatchException extends ApiException {
+  constructor(invoiceCurrency: string, orderCurrency: string) {
+    super(
+      106,
+      `La factura (${invoiceCurrency}) debe estar en la moneda de la orden de compra (${orderCurrency})`,
+      undefined,
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+}

@@ -21,7 +21,8 @@ import { VisitsService } from './visits.service';
 import { CreateVisitDto } from './dto/create-visit.dto';
 import { UpdateVisitDto } from './dto/update-visit.dto';
 import { QueryVisitDto } from './dto/query-visit.dto';
-import { Auth } from 'src/auth/decorators';
+import { Auth, CurrentUser } from 'src/auth/decorators';
+import { User } from 'src/users/entities';
 import { Role } from 'src/users/interfaces';
 import { VisitResponseSchemas } from './schemas/visit-response.schema';
 
@@ -54,8 +55,8 @@ export class VisitsController {
   @ApiForbiddenResponse({
     description: 'No tienes permisos para realizar esta acción',
   })
-  create(@Body() createVisitDto: CreateVisitDto) {
-    return this.visitsService.create(createVisitDto);
+  create(@Body() createVisitDto: CreateVisitDto, @CurrentUser() user: User) {
+    return this.visitsService.create(createVisitDto, user);
   }
 
   @Get()
@@ -73,8 +74,8 @@ export class VisitsController {
   @ApiForbiddenResponse({
     description: 'No tienes permisos para realizar esta acción',
   })
-  findAll(@Query() queryVisitDto: QueryVisitDto) {
-    return this.visitsService.findAll(queryVisitDto);
+  findAll(@Query() queryVisitDto: QueryVisitDto, @CurrentUser() user: User) {
+    return this.visitsService.findAll(queryVisitDto, user);
   }
 
   @Get(':id')
@@ -96,8 +97,9 @@ export class VisitsController {
   findOne(
     @Param('id', new ParseIntPipe())
     id: number,
+    @CurrentUser() user: User,
   ) {
-    return this.visitsService.findOne(id);
+    return this.visitsService.findOne(id, user);
   }
 
   @Patch(':id')
@@ -130,15 +132,17 @@ export class VisitsController {
     )
     id: number,
     @Body() updateVisitDto: UpdateVisitDto,
+    @CurrentUser() user: User,
   ) {
-    return this.visitsService.update(id, updateVisitDto);
+    return this.visitsService.update(id, updateVisitDto, user);
   }
 
   @Delete(':id')
   @Auth(Role.USER, Role.ADMIN)
   @ApiOperation({
     summary: 'Eliminar una visita',
-    description: 'Elimina permanentemente una visita del sistema',
+    description:
+      'Elimina permanentemente una visita del sistema. Un usuario solo puede eliminar sus propias visitas.',
   })
   @ApiResponse({
     status: 200,
@@ -155,7 +159,8 @@ export class VisitsController {
       new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST }),
     )
     id: number,
+    @CurrentUser() user: User,
   ) {
-    return this.visitsService.remove(id);
+    return this.visitsService.remove(id, user);
   }
 }

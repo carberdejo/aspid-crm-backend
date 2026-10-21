@@ -2,11 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Quote } from 'src/quotes/entities/quote.entity';
 import { QuoteStatus } from 'src/quotes/interfaces/quote-status.enum';
-import { Repository } from 'typeorm';
+import { ObjectLiteral, Repository, SelectQueryBuilder } from 'typeorm';
 import { QuoteMetricsQueryDto } from './dto/quote-metrics-query.dto';
 import { VisitMetricsQueryDto } from './dto/visit-metrics-query.dto';
+import { MetricsQueryDto } from './dto/metrics-query.dto';
 import { Visit } from 'src/visits/entities/visit.entity';
 import { ExchangeRateService } from 'src/common/exchange-rate.service';
+import { AccessScopeService } from 'src/common/access/access-scope.service';
+import { User } from 'src/users/entities';
+import { InvalidDateRangeException } from './exceptions/analytics.exceptions';
 
 interface QuoteMetricsRaw {
   total: string;
@@ -24,27 +28,22 @@ export class AnalyticsService {
     @InjectRepository(Visit)
     private readonly visitRepository: Repository<Visit>,
     private readonly exchangeRateService: ExchangeRateService,
+    private readonly accessScopeService: AccessScopeService,
   ) {}
 
-  async getQuoteStats({ userId, startDate, endDate }: QuoteMetricsQueryDto) {
+  async getQuoteStats(query: QuoteMetricsQueryDto, currentUser: User) {
     // 1. Obtenemos las tasas de HOY desde tu caché en 0 ms
     const todayRates = await this.exchangeRateService.getRates();
 
     const queryBuilder = this.quoteRepository.createQueryBuilder('quote');
-
-    if (userId) {
-      queryBuilder.andWhere('quote.user_id = :userId', { userId }); // Cuidado con el snake_case de tu BD
-    }
-
-    if (startDate && endDate) {
-      queryBuilder.andWhere(
-        'quote.created_at BETWEEN :startDate AND :endDate',
-        {
-          startDate,
-          endDate,
-        },
-      );
-    }
+    // Solo cotizaciones propias: las colaboraciones no suman (evita contar dos veces el monto)
+    this.applyMetricsFilters(
+      queryBuilder,
+      'quote',
+      'createdAt',
+      query,
+      currentUser,
+    );
 
     // 2. Agrupamos por moneda
     const metricsByCurrency = await queryBuilder
@@ -73,14 +72,8 @@ export class AnalyticsService {
       const amountInCurrency = parseFloat(metric.totalAmount || '0');
       const rate = todayRates[currency] || 1;
 
-      if (currency === 'USD') {
-        finalTotalAmountUSD += amountInCurrency;
-      } else {
-        finalTotalAmountUSD += amountInCurrency / rate;
-        console.log('monto antes: ', amountInCurrency);
-        console.log('tasa: ', rate);
-        console.log('monto convertido a USD: ', amountInCurrency / rate);
-      }
+      finalTotalAmountUSD +=
+        currency === 'USD' ? amountInCurrency : amountInCurrency / rate;
 
       total += parseInt(metric.total || '0', 10);
       pending += parseInt(metric.pending || '0', 10);
@@ -95,29 +88,21 @@ export class AnalyticsService {
     };
   }
 
-  async getVisitStats({ userId, startDate, endDate }: VisitMetricsQueryDto) {
+  async getVisitStats(query: VisitMetricsQueryDto, currentUser: User) {
     const baseQuery = this.visitRepository
       .createQueryBuilder('visit')
       .leftJoin('visit.client', 'client')
       .leftJoin('visit.contact', 'contact');
 
-    // Aplicar filtros base
-    if (userId) {
-      baseQuery.andWhere('visit.userId = :userId', { userId });
-    }
+    this.applyMetricsFilters(baseQuery, 'visit', 'date', query, currentUser);
 
-    if (startDate && endDate) {
-      baseQuery.andWhere('visit.date BETWEEN :startDate AND :endDate', {
-        startDate,
-        endDate,
-      });
-    }
-
+    // Cada métrica usa su propia copia: select/groupBy/limit no se arrastran entre consultas
     // 1. Total de Visitas
-    const totalVisits = await baseQuery.getCount();
+    const totalVisits = await baseQuery.clone().getCount();
 
     // 2. Cliente más visitado
     const topClient = await baseQuery
+      .clone()
       .select('client.commercialName', 'name')
       .addSelect('COUNT(visit.id)', 'count')
       .groupBy('client.id')
@@ -126,8 +111,10 @@ export class AnalyticsService {
       .limit(1)
       .getRawOne<{ name: string; count: string }>();
 
-    // 3. Contacto más visitado
+    // 3. Contacto más visitado (las visitas sin contacto no compiten)
     const topContact = await baseQuery
+      .clone()
+      .andWhere('contact.id IS NOT NULL')
       .select("CONCAT(contact.firstName, ' ', contact.lastName)", 'name')
       .addSelect('COUNT(visit.id)', 'count')
       .groupBy('contact.id')
@@ -139,6 +126,7 @@ export class AnalyticsService {
 
     // 4. Día con más actividad (Pico de salidas)
     const peakDate = await baseQuery
+      .clone()
       .select('visit.date', 'date')
       .addSelect('COUNT(visit.id)', 'count')
       .groupBy('visit.date')
@@ -161,5 +149,55 @@ export class AnalyticsService {
         count: parseInt(peakDate?.count || '0', 10),
       },
     };
+  }
+
+  /**
+   * Alcance y filtros comunes de las métricas.
+   *
+   * - user: siempre sus propios registros (se ignora el userId enviado) y solo en
+   *   sus áreas; si pide un área ajena recibe 403.
+   * - admin: puede filtrar por cualquier usuario y área, o ver todo.
+   *
+   * Fechas: ambos extremos inclusivos. El fin se compara como "< día siguiente"
+   * para no perder el último día cuando la columna es un timestamp (created_at).
+   */
+  private applyMetricsFilters<T extends ObjectLiteral>(
+    queryBuilder: SelectQueryBuilder<T>,
+    alias: string,
+    dateField: string,
+    { userId, departmentId, startDate, endDate }: MetricsQueryDto,
+    currentUser: User,
+  ): void {
+    if (startDate && endDate && startDate.slice(0, 10) > endDate.slice(0, 10))
+      throw new InvalidDateRangeException(startDate, endDate);
+
+    if (this.accessScopeService.isAdmin(currentUser)) {
+      if (userId)
+        queryBuilder.andWhere(`${alias}.userId = :userId`, { userId });
+    } else {
+      if (departmentId)
+        this.accessScopeService.assertDepartmentAccess(
+          currentUser,
+          departmentId,
+        );
+      this.accessScopeService.applyScope(queryBuilder, alias, currentUser);
+    }
+
+    if (departmentId)
+      queryBuilder.andWhere(`${alias}.departmentId = :departmentId`, {
+        departmentId,
+      });
+
+    if (startDate)
+      queryBuilder.andWhere(
+        `${alias}.${dateField} >= CAST(:startDate AS date)`,
+        { startDate: startDate.slice(0, 10) },
+      );
+
+    if (endDate)
+      queryBuilder.andWhere(
+        `${alias}.${dateField} < CAST(:endDate AS date) + 1`,
+        { endDate: endDate.slice(0, 10) },
+      );
   }
 }

@@ -3,7 +3,7 @@ import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginUserDto, LogoutDto, RefreshTokenDto } from './dto';
 import { JwtTokens } from './interfaces';
-import { Auth, CurrentUser } from './decorators';
+import { Auth, CurrentUser, Public } from './decorators';
 import { Role } from 'src/users/interfaces';
 import { User } from 'src/users/entities';
 
@@ -11,6 +11,7 @@ import { User } from 'src/users/entities';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Public()
   @Post('login')
   create(
     @Body() loginUserDto: LoginUserDto,
@@ -19,6 +20,7 @@ export class AuthController {
     return this.authService.login(loginUserDto, req);
   }
 
+  @Public()
   @Post('refresh')
   async refresh(
     @Body() refreshTokenDto: RefreshTokenDto,
@@ -35,8 +37,12 @@ export class AuthController {
     return await this.authService.logout(logoutDto, user);
   }
 
+  @Auth(Role.ADMIN, Role.USER)
   @Get('profile/:codUser')
-  async findSession(@Param('codUser') codUser: string) {
-    return await this.authService.profile(codUser);
+  async findSession(
+    @Param('codUser') codUser: string,
+    @CurrentUser() user: User,
+  ) {
+    return await this.authService.profile(codUser, user);
   }
 }

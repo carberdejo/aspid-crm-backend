@@ -12,9 +12,15 @@ import { RemoveQuoteDto } from './dto/remove-quote.dto';
 import { QuoteStatus } from './interfaces/quote-status.enum';
 import {
   QuoteInvalidStatusTransitionException,
+  QuoteNotEditableException,
   QuoteNotFoundException,
 } from './exceptions/quote.exceptions';
 import { ExchangeRateService } from 'src/common/exchange-rate.service';
+import { AccessScopeService } from 'src/common/access/access-scope.service';
+import { ClientAccessService } from 'src/common/access/client-access.service';
+import { User } from 'src/users/entities';
+
+const RESOURCE_LABEL = 'la cotización';
 
 @Injectable()
 export class QuotesService {
@@ -24,26 +30,35 @@ export class QuotesService {
     private readonly quoteRepository: Repository<Quote>,
     private readonly commonValidationService: CommonValidationService,
     private readonly exchangeRateService: ExchangeRateService,
+    private readonly accessScopeService: AccessScopeService,
+    private readonly clientAccessService: ClientAccessService,
   ) {}
-  async create(createQuoteDto: CreateQuoteDto) {
+  async create(createQuoteDto: CreateQuoteDto, currentUser: User) {
     this.logger.log('Creating new quote...');
 
-    // Validar que el departamento exista
-    await this.commonValidationService.findDepartmentById(
+    // Dueño efectivo: el del token para un user; el indicado (validado) para un admin.
+    // También valida que el área exista y que el dueño pertenezca a ella.
+    const userId = await this.accessScopeService.resolveOwner(
+      currentUser,
       createQuoteDto.departmentId,
+      createQuoteDto.userId,
     );
-    // Validar que el usuario exista
-    await this.commonValidationService.findUserById(createQuoteDto.userId);
-    // Validar que el cliente exista
+    // Validar que el cliente exista y que el dueño tenga acceso a él
+    // (el empleado, aunque registre un admin)
     const client = await this.commonValidationService.findClientById(
       createQuoteDto.clientId,
+    );
+    await this.clientAccessService.assertOwnerCanAccessClient(
+      currentUser,
+      userId,
+      client,
     );
     // Validar que el contacto exista
     const contact = await this.commonValidationService.findContactClientById(
       createQuoteDto.contactId,
     );
     // Validar que el contacto pertenezca al cliente
-    if (contact.clientId !== client.id) {
+    if (Number(contact.clientId) !== Number(client.id)) {
       throw new ApiException(
         400,
         `El contacto con ID ${createQuoteDto.contactId} no pertenece al cliente con ID ${createQuoteDto.clientId}`,
@@ -51,8 +66,15 @@ export class QuotesService {
         HttpStatus.BAD_REQUEST,
       );
     }
+    // Colaborador opcional: activo, del área y distinto del dueño
+    if (createQuoteDto.collaboratorId)
+      await this.accessScopeService.assertValidCollaborator(
+        createQuoteDto.collaboratorId,
+        userId,
+        createQuoteDto.departmentId,
+      );
     // Crear y guardar la cotización
-    const quote = this.quoteRepository.create(createQuoteDto);
+    const quote = this.quoteRepository.create({ ...createQuoteDto, userId });
     const savedQuote = await this.quoteRepository.save(quote);
 
     this.logger.log(
@@ -65,7 +87,7 @@ export class QuotesService {
     };
   }
 
-  async findAll(queryQuoteDto: QueryQuoteDto) {
+  async findAll(queryQuoteDto: QueryQuoteDto, currentUser: User) {
     const {
       limit = 10,
       offset = 0,
@@ -93,6 +115,13 @@ export class QuotesService {
         'contact.position',
       ])
       .leftJoinAndSelect('quote.collaborator', 'collaborator'); // Colaborador asignado
+
+    // Alcance obligatorio: un user ve las cotizaciones propias o donde es colaborador,
+    // solo en sus áreas (admin ve todo). Se aplica antes del clone para que el
+    // total en USD tampoco incluya cotizaciones ajenas.
+    this.accessScopeService.applyScope(queryBuilder, 'quote', currentUser, {
+      readerFields: ['collaboratorId'],
+    });
 
     // --- FILTROS ESPECÍFICOS DE QUOTE ---
 
@@ -183,12 +212,17 @@ export class QuotesService {
     };
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, currentUser: User) {
     this.logger.log(`Fetching quote with ID: ${id}`);
 
     const quote = await this.findOneInternal(id);
 
     if (!quote) throw new QuoteNotFoundException(id);
+
+    // El colaborador puede ver la cotización (solo lectura)
+    this.accessScopeService.assertCanRead(quote, currentUser, RESOURCE_LABEL, [
+      quote.collaboratorId,
+    ]);
 
     // --- USAMOS EL MAPPER QUE CREAMOS ANTES ---
     const optimizedQuote = QuoteMapper.toResponse(quote, true);
@@ -197,24 +231,60 @@ export class QuotesService {
     return optimizedQuote;
   }
 
-  async update(id: number, updateQuoteDto: UpdateQuoteDto) {
+  async update(id: number, updateQuoteDto: UpdateQuoteDto, currentUser: User) {
     this.logger.log(`Updating quote with ID: ${id}`);
-    console.log('esto es la data: ', updateQuoteDto.description);
     // 1. Verificar que la cotización existe
     const quote = await this.quoteRepository.findOneBy({ id });
     if (!quote) {
       throw new QuoteNotFoundException(id);
     }
 
-    // Validar que el usuario exista
-    if (updateQuoteDto.userId) {
-      await this.commonValidationService.findUserById(updateQuoteDto.userId);
+    // Solo el dueño o un admin pueden editar (el colaborador no)
+    this.accessScopeService.assertCanModify(quote, currentUser, RESOURCE_LABEL);
+
+    // Solo se editan las pendientes: una aprobada ya tiene OC y una rechazada está cerrada
+    if ((quote.status as QuoteStatus) !== QuoteStatus.PENDIENTE) {
+      throw new QuoteNotEditableException(quote.status);
     }
 
+    // Si la edición cambia el dueño o el área, se revalidan con las mismas reglas que al crear
+    const ownerId = await this.accessScopeService.resolveOwnerOnUpdate(
+      currentUser,
+      quote,
+      updateQuoteDto,
+    );
+    const changes: UpdateQuoteDto =
+      ownerId === undefined
+        ? updateQuoteDto
+        : { ...updateQuoteDto, userId: ownerId };
+
     // 2. Validaciones de integridad si se envían IDs nuevos
-    if (updateQuoteDto.clientId) {
-      await this.commonValidationService.findClientById(
-        updateQuoteDto.clientId,
+    // Si cambia el cliente o el dueño, el cliente final debe ser accesible para el dueño final
+    const finalOwnerId = ownerId ?? Number(quote.userId);
+
+    // Si cambia el colaborador, el dueño o el área, el colaborador final (si hay) se revalida.
+    // collaboratorId: null lo quita
+    const finalCollaboratorId =
+      updateQuoteDto.collaboratorId !== undefined
+        ? updateQuoteDto.collaboratorId
+        : quote.collaboratorId;
+    if (
+      finalCollaboratorId &&
+      (updateQuoteDto.collaboratorId !== undefined || ownerId !== undefined)
+    )
+      await this.accessScopeService.assertValidCollaborator(
+        finalCollaboratorId,
+        finalOwnerId,
+        Number(updateQuoteDto.departmentId ?? quote.departmentId),
+      );
+    if (updateQuoteDto.clientId || finalOwnerId !== Number(quote.userId)) {
+      const client = await this.commonValidationService.findClientById(
+        updateQuoteDto.clientId || quote.clientId,
+      );
+      await this.clientAccessService.assertOwnerCanAccessClient(
+        currentUser,
+        finalOwnerId,
+        client,
       );
     }
     if (updateQuoteDto.contactId) {
@@ -235,7 +305,7 @@ export class QuotesService {
 
     // 3. Ejecutar la actualización con MERGE
     // merge "pisa" los valores de 'quote' con los de 'updateQuoteDto'
-    const updatedEntity = this.quoteRepository.merge(quote, updateQuoteDto);
+    const updatedEntity = this.quoteRepository.merge(quote, changes);
 
     // Guardamos la entidad mezclada
     await this.quoteRepository.save(updatedEntity);
@@ -253,7 +323,7 @@ export class QuotesService {
     };
   }
 
-  async remove(id: number, removeQuoteDto: RemoveQuoteDto) {
+  async remove(id: number, removeQuoteDto: RemoveQuoteDto, currentUser: User) {
     this.logger.log(`Soft-deleting quote with ID: ${id}`);
 
     // 1. Buscamos la cotización
@@ -261,8 +331,12 @@ export class QuotesService {
 
     if (!quote) throw new QuoteNotFoundException(id);
 
-    // 2. Validar si ya está rechazada para no repetir el proceso
-    if ((quote.status as QuoteStatus) === QuoteStatus.RECHAZADO) {
+    // Solo el dueño o un admin pueden rechazarla
+    this.accessScopeService.assertCanModify(quote, currentUser, RESOURCE_LABEL);
+
+    // 2. Solo se rechaza una pendiente: una aprobada ya tiene OC (se anulará la OC) y
+    // una rechazada no se rechaza dos veces
+    if ((quote.status as QuoteStatus) !== QuoteStatus.PENDIENTE) {
       throw new QuoteInvalidStatusTransitionException(
         quote.status,
         QuoteStatus.RECHAZADO,
