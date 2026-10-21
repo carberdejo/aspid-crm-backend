@@ -563,11 +563,11 @@ export class ClientsService {
       const worksheet = xlsxStyle.utils.json_to_sheet([]); // Iniciamos vacío para controlar las filas
 
       // 2. Insertar Fila 1: Logo/Texto institucional tal como viene en tu plantilla de importación
-      xlsxStyle.utils.sheet_add_aoa(worksheet, [['ACME & CIA', 'CARTERA']], {
+      xlsxStyle.utils.sheet_add_aoa(worksheet, [['ASPID CRM', 'CARTERA']], {
         origin: 'A1',
       });
 
-      // Estilo para la celda "ACME & CIA" de la esquina
+      // Estilo para la celda "ASPID CRM" de la esquina
       applyCellStyle(worksheet['A1'] as xlsxStyle.CellObject | undefined, {
         font: { bold: true, color: { rgb: 'E28743' }, size: 12 },
       });

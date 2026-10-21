@@ -35,7 +35,7 @@ export const VisitResponseSchemas = {
             },
             client: {
               id: 1,
-              commercialName: 'ACME Soluciones',
+              commercialName: 'Andina Soluciones',
               ruc: '20544699939',
             },
             contact: {
@@ -62,7 +62,7 @@ export const VisitResponseSchemas = {
             },
             client: {
               id: 1,
-              commercialName: 'ACME Soluciones',
+              commercialName: 'Andina Soluciones',
               ruc: '20544699939',
             },
             contact: {
@@ -97,12 +97,12 @@ export const VisitResponseSchemas = {
           codUser: '2026002',
           firstName: 'Carlos',
           lastName: 'Berdejo',
-          email: 'carlos.berdejo@concar.com',
+          email: 'carlos.berdejo@aspid.com',
         },
         client: {
           id: 1,
-          commercialName: 'ACME Soluciones',
-          businessName: 'ACME & CIA S.A.C',
+          commercialName: 'Andina Soluciones',
+          businessName: 'ANDINA SOLUCIONES S.A.C',
           ruc: '20544699939',
           address: 'Av. Las Camelias 123, San Isidro',
         },

@@ -7,13 +7,13 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * La columna queda NULL-able: las entregas existentes se rellenan solo cuando su usuario
  * pertenece a UNA sola área (no hay ambigüedad). El resto queda en NULL para revisión manual:
  *
- *   SELECT d.id, d.user_id FROM concar1.deliveries d WHERE d.department_id IS NULL;
+ *   SELECT d.id, d.user_id FROM aspid.deliveries d WHERE d.department_id IS NULL;
  */
 export class AddDepartmentToDeliveries1791244800001 implements MigrationInterface {
   name = 'AddDepartmentToDeliveries1791244800001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    const s = process.env.POSTGRES_SCHEMA || 'concar1';
+    const s = process.env.POSTGRES_SCHEMA || 'aspid';
 
     await queryRunner.query(`
       ALTER TABLE ${s}.deliveries ADD COLUMN department_id bigint;
@@ -38,7 +38,7 @@ export class AddDepartmentToDeliveries1791244800001 implements MigrationInterfac
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    const s = process.env.POSTGRES_SCHEMA || 'concar1';
+    const s = process.env.POSTGRES_SCHEMA || 'aspid';
 
     await queryRunner.query(`
       DROP INDEX ${s}.idx_deliveries_department_id;

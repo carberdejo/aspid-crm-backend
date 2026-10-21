@@ -83,7 +83,7 @@ $ pnpm migration:create src/migrations/AddStatusToVisit
 **Reglas:**
 
 - Nunca modificar una migración que ya se aplicó en algún entorno: crear una nueva.
-- Usar el esquema de `process.env.POSTGRES_SCHEMA` (por defecto `concar1`), como las existentes.
+- Usar el esquema de `process.env.POSTGRES_SCHEMA` (por defecto `aspid`), como las existentes.
 - Implementar siempre `down()` para poder revertir.
 - Desplegar en este orden: **primero las migraciones, luego la nueva versión de la API**
   (si la API espera una columna que aún no existe, sus consultas fallan).

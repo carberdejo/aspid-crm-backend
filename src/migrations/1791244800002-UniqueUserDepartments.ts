@@ -11,7 +11,7 @@ export class UniqueUserDepartments1791244800002 implements MigrationInterface {
   name = 'UniqueUserDepartments1791244800002';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    const s = process.env.POSTGRES_SCHEMA || 'concar1';
+    const s = process.env.POSTGRES_SCHEMA || 'aspid';
 
     await queryRunner.query(`
       DELETE FROM ${s}.user_departments newer
@@ -26,7 +26,7 @@ export class UniqueUserDepartments1791244800002 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    const s = process.env.POSTGRES_SCHEMA || 'concar1';
+    const s = process.env.POSTGRES_SCHEMA || 'aspid';
 
     await queryRunner.query(`
       ALTER TABLE ${s}.user_departments

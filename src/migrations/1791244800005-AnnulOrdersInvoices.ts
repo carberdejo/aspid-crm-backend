@@ -17,7 +17,7 @@ export class AnnulOrdersInvoices1791244800005 implements MigrationInterface {
   name = 'AnnulOrdersInvoices1791244800005';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    const s = process.env.POSTGRES_SCHEMA || 'concar1';
+    const s = process.env.POSTGRES_SCHEMA || 'aspid';
 
     await queryRunner.query(`
       ALTER TABLE ${s}.purchase_order
@@ -54,7 +54,7 @@ export class AnnulOrdersInvoices1791244800005 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    const s = process.env.POSTGRES_SCHEMA || 'concar1';
+    const s = process.env.POSTGRES_SCHEMA || 'aspid';
 
     // Revertir falla si hay números de OC repetidos (reusados tras una anulación):
     // en ese caso hay que resolverlos a mano antes de volver a la restricción global

@@ -9,7 +9,7 @@ export class AddAccessScopeIndexes1791244800003 implements MigrationInterface {
   name = 'AddAccessScopeIndexes1791244800003';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    const s = process.env.POSTGRES_SCHEMA || 'concar1';
+    const s = process.env.POSTGRES_SCHEMA || 'aspid';
 
     await queryRunner.query(`
       CREATE INDEX idx_visit_user_dept_date ON ${s}.visit (user_id, department_id, date);
@@ -26,7 +26,7 @@ export class AddAccessScopeIndexes1791244800003 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    const s = process.env.POSTGRES_SCHEMA || 'concar1';
+    const s = process.env.POSTGRES_SCHEMA || 'aspid';
 
     await queryRunner.query(`
       DROP INDEX ${s}.idx_deliveries_user_dept_date;

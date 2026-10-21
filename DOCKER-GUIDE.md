@@ -1,6 +1,6 @@
-# Docker Setup - CONCAR Backend
+# Docker Setup - ASPID Backend
 
-Guía completa para usar Docker y Docker Compose con el proyecto CONCAR Backend (NestJS).
+Guía completa para usar Docker y Docker Compose con el proyecto ASPID Backend (NestJS).
 
 ## 📋 Requisitos Previos
 
@@ -21,7 +21,7 @@ docker-compose --version
 ### 1. Clonar el Repositorio
 ```bash
 git clone <tu-repositorio>
-cd concar-backend
+cd aspid-backend
 ```
 
 ### 2. Configurar Variables de Entorno
@@ -75,11 +75,11 @@ Una vez que los contenedores estén ejecutándose:
 **PostgreSQL:**
 - Usuario: `admin_user`
 - Contraseña: `admin_password`
-- Base de datos: `db_concar`
+- Base de datos: `db_aspid`
 - Puerto: `5432`
 
 **PgAdmin:**
-- Email: `admin@concar.local`
+- Email: `admin@aspid.local`
 - Contraseña: `admin`
 
 ---
@@ -93,7 +93,7 @@ Una vez que los contenedores estén ejecutándose:
 - Puerto: `5432` (mapeado)
 - Volumen: `postgres_data` (persistencia)
 - Health Check: Incluido
-- Red: `concar-network`
+- Red: `aspid-network`
 
 #### 2. **backend** - API NestJS
 - Build: Desde `Dockerfile` (multi-stage)
@@ -101,7 +101,7 @@ Una vez que los contenedores estén ejecutándose:
 - Depende de: PostgreSQL (wait for health)
 - Variables: Configurables via `.env`
 - Health Check: Verificación de Swagger
-- Red: `concar-network`
+- Red: `aspid-network`
 
 #### 3. **pgadmin** - Gestor PostgreSQL (Opcional)
 - Imagen: `dpage/pgadmin4:latest`
@@ -127,7 +127,7 @@ docker-compose logs -f backend
 
 # Acceder a la terminal del contenedor
 docker-compose exec backend sh
-docker-compose exec postgres psql -U admin_user -d db_concar
+docker-compose exec postgres psql -U admin_user -d db_aspid
 
 # Reiniciar un servicio específico
 docker-compose restart backend
@@ -170,7 +170,7 @@ docker-compose exec backend npm run lint
 docker-compose exec backend npm run build
 
 # Acceder a psql en PostgreSQL
-docker-compose exec postgres psql -U admin_user -d db_concar
+docker-compose exec postgres psql -U admin_user -d db_aspid
 
 # Ver version de Node
 docker-compose exec backend node --version
@@ -241,7 +241,7 @@ docker-compose exec postgres chmod -R 755 /var/lib/postgresql/data
 # PostgreSQL - Cambiar estas credenciales
 POSTGRES_USER=prod_user
 POSTGRES_PASSWORD=<contraseña-fuerte-64-caracteres>
-POSTGRES_DB=concar_prod
+POSTGRES_DB=aspid_prod
 
 # JWT - Generar nuevos secretos
 JWT_SECRET=<generar-con-openssl-rand-hex-32>
@@ -287,8 +287,8 @@ POSTGRES_HOST=postgres           # Nombre del servicio en docker-compose
 POSTGRES_PORT=5432              # Puerto de PostgreSQL
 POSTGRES_USER=admin_user        # Usuario de BD
 POSTGRES_PASSWORD=admin_password # Contraseña de BD
-POSTGRES_DB=db_concar           # Nombre de BD
-POSTGRES_SCHEMA=concar1         # Esquema por defecto
+POSTGRES_DB=db_aspid           # Nombre de BD
+POSTGRES_SCHEMA=aspid         # Esquema por defecto
 
 # JWT
 JWT_SECRET=...                  # Secreto para tokens JWT

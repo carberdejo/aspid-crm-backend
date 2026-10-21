@@ -1,4 +1,4 @@
-# Guía de Custom Exceptions - Concar Backend
+# Guía de Custom Exceptions - ASPID Backend
 
 ## Propósito de los Custom Exceptions
 

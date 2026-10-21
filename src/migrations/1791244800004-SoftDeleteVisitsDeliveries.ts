@@ -9,7 +9,7 @@ export class SoftDeleteVisitsDeliveries1791244800004 implements MigrationInterfa
   name = 'SoftDeleteVisitsDeliveries1791244800004';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    const s = process.env.POSTGRES_SCHEMA || 'concar1';
+    const s = process.env.POSTGRES_SCHEMA || 'aspid';
 
     await queryRunner.query(`
       ALTER TABLE ${s}.visit
@@ -25,7 +25,7 @@ export class SoftDeleteVisitsDeliveries1791244800004 implements MigrationInterfa
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    const s = process.env.POSTGRES_SCHEMA || 'concar1';
+    const s = process.env.POSTGRES_SCHEMA || 'aspid';
 
     // Al revertir, los registros eliminados lógicamente se borran de verdad:
     // sin la columna volverían a aparecer como vigentes.

@@ -39,7 +39,7 @@ export class CreateUserDto {
 
   @ApiProperty({
     description: 'Correo electrónico institucional',
-    example: 'carlos.berdejo@concar.com',
+    example: 'carlos.berdejo@aspid.com',
   })
   @IsString()
   @IsNotEmpty({ message: 'El correo electrónico es obligatorio' })

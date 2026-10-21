@@ -61,7 +61,7 @@ export class ExchangeRateService implements OnModuleInit {
 
       const data = (await response.json()) as ExchangeRateInterface;
 
-      // Filtramos solo las monedas de LatAm que le interesan a Concar (PEN, MXN, CLP)
+      // Filtramos solo las monedas de LatAm que le interesan a ASPID (PEN, MXN, CLP)
       // La API nos devuelve un objeto "conversion_rates" con base USD
       const rates = {
         USD: 1,

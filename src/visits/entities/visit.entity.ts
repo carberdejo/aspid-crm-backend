@@ -13,7 +13,7 @@ import { Client } from '../../clients/entities/client.entity';
 import { ContactClient } from '../../clients/entities/contact-client.entity';
 import { Department } from 'src/departments/entities/department.entity';
 
-@Entity({ name: 'visit', schema: 'concar1' })
+@Entity({ name: 'visit' })
 export class Visit {
   @ApiProperty({ example: 1, description: 'ID único de la visita' })
   @PrimaryGeneratedColumn({ type: 'bigint' })

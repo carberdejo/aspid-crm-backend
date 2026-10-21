@@ -28,7 +28,7 @@ export class User {
   @Column('varchar', { name: 'last_name', nullable: true })
   lastName: string;
 
-  @ApiProperty({ example: 'carlos@concar.com', description: 'Email único' })
+  @ApiProperty({ example: 'carlos@aspid.com', description: 'Email único' })
   @Column('varchar', { unique: true, nullable: false })
   email: string;
 

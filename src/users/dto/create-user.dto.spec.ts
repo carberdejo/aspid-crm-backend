@@ -15,7 +15,7 @@ describe('CreateUserDto', () => {
     codUser: '2026001',
     firstName: 'Carlos',
     lastName: 'Berdejo',
-    email: 'carlos@concar.com',
+    email: 'carlos@aspid.com',
     password: 'securePassword123',
     role: Role.ADMIN,
     country: 'Peru',

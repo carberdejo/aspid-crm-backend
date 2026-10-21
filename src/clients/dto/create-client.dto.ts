@@ -10,7 +10,7 @@ import {
 export class CreateClientDto {
   @ApiProperty({
     description: 'Nombre comercial de la empresa',
-    example: 'ACME Soluciones',
+    example: 'Andina Soluciones',
     maxLength: 100,
   })
   @IsString()
@@ -20,7 +20,7 @@ export class CreateClientDto {
 
   @ApiProperty({
     description: 'Razón social legal de la empresa',
-    example: 'ACME SOLUCIONES GLOBALES S.A.C.',
+    example: 'ANDINA SOLUCIONES GLOBALES S.A.C.',
     maxLength: 100,
   })
   @IsString()

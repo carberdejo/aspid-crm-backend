@@ -1,12 +1,12 @@
 version: "3.8"
 
 services:
-  concar-backend:
-    image: concar-backend:v1.0
+  aspid-backend:
+    image: aspid-backend:v1.0
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: concar-backend-api
+    container_name: aspid-backend-api
     restart: always
     ports:
       - "${PORT}:${PORT}"
@@ -14,10 +14,10 @@ services:
     env_file:
       - .env
     networks:
-      - concar_network
+      - aspid_network
 
 networks:
   # Definimos la red personalizada
-  concar_network:
+  aspid_network:
     external: true
-    name: red_global_concar
+    name: red_global_aspid
