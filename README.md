@@ -1,61 +1,49 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# ASPID CRM · Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API de **ASPID CRM**: gestión comercial de clientes, carteras, visitas, cotizaciones,
+órdenes de compra, facturas y entregas, con acceso por empleado y por área.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+NestJS 11 · TypeORM 0.3 · PostgreSQL 16 · JWT (access + refresh) · Swagger.
 
-## Description
+## Puesta en marcha
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+1. Levanta la base de datos con el repo `aspid-crm-database` (contenedor `postgres_db_aspid`,
+   base `db_aspid`, schema `aspid`).
+2. Copia `.env.template` como `.env` y completa los valores. Se validan al arrancar
+   (`src/config/joi.validation.ts`): si falta alguno, la API no inicia.
 
-## Project setup
+   | Variable | Para qué |
+   |---|---|
+   | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Conexión a Postgres |
+   | `POSTGRES_DB`, `POSTGRES_SCHEMA` | `db_aspid` y `aspid` |
+   | `PORT` | Puerto de la API (usamos `4000`) |
+   | `JWT_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN` | Tokens |
+   | `SUNAT_TOKEN` | Consulta de RUC |
+   | `EXCHANGE_RATE_API_KEY` | Tipo de cambio |
+   | `FRONTEND_HOST` | Origen permitido por CORS |
 
-```bash
-$ npm install
-```
+3. Instala dependencias, aplica las migraciones y arranca:
 
-## Compile and run the project
+   ```bash
+   pnpm install
+   pnpm migration:run
+   pnpm start:dev
+   ```
 
-```bash
-# development
-$ npm run start
+4. API en `http://localhost:4000/api/v1` y Swagger en `http://localhost:4000/api/docs`.
+   Con la semilla de desarrollo de `aspid-crm-database` puedes entrar como `admin@aspid.com`.
 
-# watch mode
-$ npm run start:dev
+## Scripts
 
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
+| Comando | Qué hace |
+|---|---|
+| `pnpm start:dev` | Desarrollo con recarga |
+| `pnpm build` / `pnpm start:prod` | Compila a `dist/` y lo ejecuta |
+| `pnpm lint` | ESLint (con `--fix`) |
+| `pnpm format` | Prettier |
+| `pnpm test` | Tests unitarios (`pnpm test -- visits` para filtrar) |
+| `pnpm test:cov` | Tests con cobertura |
+| `npx tsc --noEmit` | Verificación de tipos |
 
 ## Migraciones
 
@@ -88,48 +76,23 @@ $ pnpm migration:create src/migrations/AddStatusToVisit
 - Desplegar en este orden: **primero las migraciones, luego la nueva versión de la API**
   (si la API espera una columna que aún no existe, sus consultas fallan).
 
-**En producción** (dentro del contenedor, con el código compilado):
+## Docker
+
+La API corre en el contenedor `aspid-backend-api`, en la red externa `red_global_aspid`
+compartida con la base de datos y el frontend. Toma la configuración del `.env`; dentro de
+Docker, `POSTGRES_HOST` debe ser el nombre del contenedor de la base (`postgres_db_aspid`).
 
 ```bash
-$ docker compose exec <servicio-backend> pnpm migration:run:prod
+docker network create red_global_aspid   # una sola vez
+docker compose up -d --build
+
+# migraciones dentro del contenedor (código compilado)
+docker compose exec aspid-backend pnpm migration:run:prod
 ```
 
-## Deployment
+## Documentación
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- [`AGENTS.md`](AGENTS.md): arquitectura, formato de la API, autenticación, reglas de acceso
+  y de negocio, migraciones, convenciones y problemas conocidos.
+- [`EXCEPTIONS_GUIDE.md`](EXCEPTIONS_GUIDE.md): códigos de error por módulo.
+- [`NGINX-CONFIG.md`](NGINX-CONFIG.md): configuración de Nginx como proxy (IP real del cliente).

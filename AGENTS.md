@@ -1,449 +1,150 @@
-# AGENTS.md - NestJS Backend Development Guide
+# AGENTS.md - ASPID CRM Backend
 
-This document provides essential information for AI coding agents working in this repository.
+Guía para agentes de IA (y personas) que trabajan en el backend de **ASPID CRM**.
+Es la fuente única de contexto: `CLAUDE.md` la importa.
 
-## Project Overview
+El sistema tiene tres repos hermanos: `aspid-crm-backend` (este), `aspid-crm-frontend`
+(Next.js) y `aspid-crm-database` (infraestructura de PostgreSQL, foto del esquema y semillas).
+**Las reglas de negocio y de acceso viven aquí**; el frontend solo las refleja.
 
-- **Framework**: NestJS (TypeScript)
-- **Database**: PostgreSQL with TypeORM
-- **Architecture**: Modular structure with controllers, services, entities, DTOs
-- **API Prefix**: `api/v1`
-- **Port**: 5000 (default)
+## Stack
 
-## Build, Lint, and Test Commands
+- **NestJS 11** (TypeScript), **TypeORM 0.3**, **PostgreSQL 16** (base `db_aspid`, schema `aspid`)
+- Passport JWT (access + refresh con sesiones en BD), class-validator, Swagger, Joi para validar el `.env`
+- `@nestjs/schedule` y `@nestjs/cache-manager` (tipo de cambio)
+- Gestor de paquetes: **pnpm** (`pnpm-lock.yaml`)
+- Mensajes de error y comentarios en **español**; nombres de código en inglés
 
-### Build & Run
-
-```bash
-npm run build                 # Build the project
-npm run start                 # Start in production mode
-npm run start:dev             # Start in watch mode (development)
-npm run start:debug           # Start with debugger
-npm run start:prod            # Run built production code
-```
-
-### Linting & Formatting
+## Comandos
 
 ```bash
-npm run lint                  # Run ESLint with auto-fix
-npm run format                # Format code with Prettier
+pnpm start:dev           # Desarrollo (watch)
+pnpm build               # Compilar a dist/
+npx tsc --noEmit         # Verificación de tipos
+pnpm lint                # ESLint (con --fix)
+pnpm test                # Tests unitarios (Jest)
+pnpm test -- visits      # Solo los specs que coinciden con el patrón
+pnpm migration:show      # Migraciones aplicadas y pendientes
+pnpm migration:run       # Aplicar pendientes
+pnpm migration:revert    # Revertir la última
 ```
 
-### Testing
+Antes de dar un cambio por terminado: `npx tsc --noEmit`, los tests de los módulos tocados
+y lint sin errores nuevos. Hay fallos previos conocidos (ver "Problemas conocidos"): no los
+confundas con regresiones.
 
-```bash
-npm test                      # Run all unit tests
-npm run test:watch            # Run tests in watch mode
-npm run test:cov              # Run tests with coverage report
-npm run test:e2e              # Run end-to-end tests
-npm run test:debug            # Run tests with Node debugger
-```
+## Configuración
 
-### Running a Single Test
+- Variables en `.env` (plantilla en `.env.template`), validadas con Joi en `src/config/joi.validation.ts`: `POSTGRES_*`, `JWT_*`, `SUNAT_TOKEN`, `EXCHANGE_RATE_API_KEY`, `FRONTEND_HOST` (CORS).
+- Puerto: **4000** en el `.env` (si falta `PORT`, el código cae en 5000).
+- API en `http://localhost:4000/api/v1`; Swagger en `/api/docs`.
+- `synchronize: false`: **el esquema solo cambia con migraciones**.
 
-```bash
-# Run a specific test file
-npm test -- users.service.spec.ts
-
-# Run tests matching a pattern
-npm test -- --testNamePattern="create"
-
-# Run a specific test file in watch mode
-npm test -- --watch users.service.spec.ts
-```
-
-## Code Style Guidelines
-
-### Import Organization
-
-1. **External libraries first** (NestJS, TypeORM, etc.)
-2. **Internal modules second** (src imports)
-3. **Use path aliases**: `src/` for internal imports
-4. **Group by type**: decorators, services, entities, DTOs, interfaces
-
-Example:
-
-```typescript
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
-import { CreateUserDto } from './dto/create-user.dto';
-import { User } from './entities/user.entity';
-import { ApiException } from 'src/common/exceptions/api.exception';
-import { DepartmentsService } from 'src/departments/departments.service';
-```
-
-### Formatting (Prettier)
-
-- **Single quotes** for strings
-- **Trailing commas** on all multi-line structures
-- **End of line**: Auto (handles cross-platform)
-- 2 spaces for indentation
-
-### TypeScript Configuration
-
-- **Target**: ES2023
-- **Module**: NodeNext (ESM compatible)
-- **Strict null checks**: Enabled
-- **No implicit any**: Disabled (explicit `any` allowed)
-- **Decorators**: Enabled (experimentalDecorators, emitDecoratorMetadata)
-
-### ESLint Rules
-
-- **No explicit any**: Disabled (`@typescript-eslint/no-explicit-any: off`)
-- **No floating promises**: Warning (must handle promises properly)
-- **No unsafe argument**: Warning
-- Use TypeScript ESLint recommended config
-
-## Naming Conventions
-
-### Files
-
-- **Entities**: `*.entity.ts` (e.g., `user.entity.ts`)
-- **Controllers**: `*.controller.ts` (e.g., `users.controller.ts`)
-- **Services**: `*.service.ts` (e.g., `users.service.ts`)
-- **DTOs**: `*.dto.ts` (e.g., `create-user.dto.ts`)
-- **Interfaces**: `*.interface.ts` or defined in `interfaces/index.ts`
-- **Tests**: `*.spec.ts` (co-located with implementation)
-
-### Classes and Variables
-
-- **Classes**: PascalCase (`UsersService`, `CreateUserDto`)
-- **Interfaces**: PascalCase with descriptive names (`UserResponse`, `Role`)
-- **Variables/parameters**: camelCase (`createUserDto`, `mockUserRepository`)
-- **Constants**: UPPER_SNAKE_CASE for true constants, camelCase for config
-- **Database columns**: snake_case (`cod_user`, `first_name`)
-
-### Entity Properties
-
-- Use `@Column` decorator with explicit names for database mapping
-- Entity properties in camelCase, database columns in snake_case:
-
-```typescript
-@Column({ name: 'cod_user', type: 'varchar', length: 50, unique: true })
-codUser: string;
-```
-
-## DTOs and Validation
-
-### Use class-validator Decorators
-
-```typescript
-export class CreateUserDto {
-  @IsString()
-  @IsNotEmpty()
-  codUser: string;
-
-  @IsEmail({}, { message: 'El formato del correo es inválido' })
-  email: string;
-
-  @IsArray()
-  @ArrayMinSize(1)
-  @IsNumber({}, { each: true })
-  departmentIds: number[];
-}
-```
-
-### Global Validation Pipe
-
-- **Whitelist**: true (strip non-whitelisted properties)
-- **ForbidNonWhitelisted**: true (throw error on unknown properties)
-
-## Error Handling
-
-### Use ApiException for Business Logic Errors
-
-```typescript
-throw new ApiException(
-  400, // Business error code
-  'User email already exists', // Message
-  [errorDetails], // Optional error array
-  HttpStatus.BAD_REQUEST, // HTTP status (default: 400)
-);
-```
-
-### Error Response Structure
-
-```typescript
-{
-  code: number;      // Business error code
-  message: string;   // Human-readable message
-  errors?: any[];    // Additional details
-}
-```
-
-### Try-Catch Best Practices
-
-- Always catch errors in service methods
-- Log errors using Logger before throwing
-- Transform database/external errors into ApiException
-- Provide meaningful error messages in Spanish (business language)
-
-## Testing Standards
-
-### Test File Structure
-
-Follow the **AAA pattern** (Arrange, Act, Assert):
-
-```typescript
-describe('UsersService', () => {
-  let service: UsersService;
-
-  // Define mocks
-  const mockUserRepository = {
-    findOne: jest.fn(),
-    save: jest.fn(),
-  };
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        UsersService,
-        { provide: getRepositoryToken(User), useValue: mockUserRepository },
-      ],
-    }).compile();
-    service = module.get<UsersService>(UsersService);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  describe('create', () => {
-    it('should create user successfully', async () => {
-      // ARRANGE: Setup data and mocks
-      const createUserDto = {
-        /* ... */
-      };
-      mockUserRepository.save.mockResolvedValue({ id: 1 });
-
-      // ACT: Execute method
-      const result = await service.create(createUserDto);
-
-      // ASSERT: Verify results
-      expect(result.message).toContain('created successfully');
-      expect(mockUserRepository.save).toHaveBeenCalled();
-    });
-  });
-});
-```
-
-### Mocking Guidelines
-
-- **Mock ALL constructor dependencies** (repositories, services)
-- Use `getRepositoryToken(Entity)` for TypeORM repositories
-- Mock only the methods you actually use
-- Use `jest.clearAllMocks()` in `afterEach`
-- Use `mockResolvedValue()` for async methods
-- Use `mockResolvedValueOnce()` for multiple different responses
-
-### What to Test
-
-- ✅ Business logic and validations
-- ✅ Error handling and edge cases
-- ✅ Data transformations
-- ✅ Method calls and arguments
-- ❌ Don't test trivial getters/setters
-- ❌ Don't test external library behavior
-
-## Architecture Patterns
-
-### Module Structure
+## Estructura
 
 ```
 src/
-├── module-name/
-│   ├── dto/
-│   │   ├── create-*.dto.ts
-│   │   ├── update-*.dto.ts
-│   │   └── query-*.dto.ts
-│   ├── entities/
-│   │   └── *.entity.ts
-│   ├── interfaces/
-│   │   └── index.ts
-│   ├── *.controller.ts
-│   ├── *.service.ts
-│   ├── *.module.ts
-│   ├── *.controller.spec.ts
-│   └── *.service.spec.ts
+  main.ts              Prefijo api/v1, ValidationPipe, filtro de errores, interceptor de respuesta, Swagger, CORS
+  config/              configuration.ts, joi.validation.ts, data-source.ts (solo para el CLI de migraciones)
+  migrations/          Migraciones TypeORM (la primera, Baseline, es el esquema al 2026-10-06)
+  common/
+    access/            AccessScopeService, ClientAccessService y sus excepciones (130-139)
+    exceptions/        ApiException
+    filters/           HttpExceptionFilter (formato de error)
+    interceptor/       TransformResponseInterceptor (formato de éxito)
+    helpers/           unique-violation, duration, ip
+    dto/               PaginationDto (limit, offset, startDate, endDate, order)
+  auth/                Login, refresh, logout, guards globales, decoradores
+  users/ departments/ clients/ portfolios/ catalogs/
+  visits/ quotes/ orders/ invoices/ deliverys/ analytics/
 ```
 
-### Dependency Injection
+Cada módulo sigue `dto/`, `entities/`, `exceptions/`, `interfaces/`, `*.controller.ts`,
+`*.service.ts`, `*.module.ts` y specs junto al código.
 
-- Use constructor injection for all dependencies
-- Inject repositories with `@InjectRepository(Entity)`
-- Services are automatically injectable with `@Injectable()`
+## Formato de la API
 
-### Logger Usage
+- **Éxito**: el interceptor envuelve todo en `{ code: 1, message, data }`. Un servicio puede devolver `{ message, data, total? }` o el objeto directamente.
+- **Error**: `{ code, message, errors? }`, donde `code` es el código de negocio de la excepción.
+- `ValidationPipe` con `whitelist` y `forbidNonWhitelisted`: un campo no declarado en el DTO devuelve 400.
+- Los `bigint` llegan de Postgres como **string**: normaliza con `Number()` al comparar ids.
 
-```typescript
-export class UsersService {
-  protected readonly logger = new Logger(UsersService.name);
+## Autenticación
 
-  async create() {
-    this.logger.log('Creating user...');
-    this.logger.error(`Error: ${message}`);
-  }
-}
-```
+- `JwtAuthGuard` y `UserRoleGuard` están registrados como **`APP_GUARD`**: todo endpoint exige JWT por defecto.
+  - `@Public()` abre un endpoint (login, refresh).
+  - `@Auth(Role.ADMIN)` restringe por rol y documenta Swagger; sin roles, basta con estar autenticado.
+  - `@CurrentUser()` entrega la entidad `User` con `userDepartments.department`.
+- El access token lleva `{ sub, codUser, email, role, depts }`, pero `JwtStrategy` **recarga el usuario y sus áreas desde la BD** en cada request: las reglas de alcance usan siempre la BD, no el token. Un usuario inactivo recibe 401.
+- El refresh token se guarda hasheado en `user_session`.
 
-## Additional Resources
+## Reglas de acceso (`src/common/access/`)
 
-- Main documentation: `README.md`
-- Testing guide (Spanish): `TESTING-GUIDE.md` - comprehensive testing tutorial
-- NestJS docs: https://docs.nestjs.com
-- TypeORM docs: https://typeorm.io
+**`AccessScopeService`** (actividades con dueño y área: visitas, cotizaciones, entregas, OC y facturas vía su cotización):
 
-## Module Refactoring History
+| Método | Uso |
+|---|---|
+| `resolveOwner(user, deptId, userId?)` | Al crear: un user registra siempre a su nombre y en sus áreas; el admin puede indicar otro usuario activo del área |
+| `resolveOwnerOnUpdate(user, resource, changes)` | Al editar, si cambia el dueño o el área (después de `assertCanModify`) |
+| `applyScope(qb, alias, user, opts)` | En listados: admin sin filtro; user = (dueño OR lectores) AND área ∈ sus áreas. `readerFields: ['collaboratorId']` para cotizaciones |
+| `assertCanRead(resource, user, label, readers?)` | Detalle: admin, dueño o lector, dentro de sus áreas |
+| `assertCanModify(resource, user, label)` | Editar, eliminar o anular: solo admin o dueño |
+| `assertValidCollaborator(...)` | Colaborador activo, del área y distinto del dueño |
+| `findDepartmentMembers(user, deptId)` | Usuarios activos de un área para selectores |
 
-### Clients Module (Completed - April 2026)
+**`ClientAccessService`**: un user accede a los clientes de sus carteras (`portfolio_users`) y a los
+que tenga con excepción activa (`user_client_exception`); el admin, a todos.
 
-The Clients module has been fully refactored and optimized following best practices. This serves as a reference implementation for future module refactorings.
+Todo servicio nuevo de una actividad debe pasar por estas validaciones: **no** filtres por
+usuario a mano.
 
-#### Phase 1: Critical Issues (Security & Bugs) ✅
+## Reglas de negocio importantes
 
-1. **Authentication Security**
-   - Added `@Auth(Role.USER, Role.ADMIN)` to all endpoints
-   - Fixed `AuthGuard('jwt')` specification in Swagger context
-   - Protected all routes with proper role-based access control
+- **Eliminado lógico** en visitas y entregas: `deleted_at` (`@DeleteDateColumn`) + `deleted_by`. Las consultas de TypeORM los excluyen solas; en SQL crudo filtra `deleted_at IS NULL`.
+- **OC y facturas no se borran: se anulan** (`status` `VIGENTE` → `ANULADA` con `annulled_at`, `annulled_by`, `annul_reason`). Los totales solo cuentan documentos vigentes.
+  - Una cotización tiene como máximo **una OC vigente** (`uk_po_active_quote`); al anular la OC, la cotización vuelve a `PENDIENTE`.
+  - El número de OC se puede reusar si la anterior está anulada (`uk_po_number_active`); el número de factura queda reservado siempre.
+  - Una OC con facturas vigentes no se anula; su monto no puede bajar de lo ya facturado.
+- **Concurrencia en facturación**: todo lo que cambia lo facturado de una OC usa `lockOrderWithQuote` (`SELECT ... FOR UPDATE`, `orders/order-billing.helpers.ts`) dentro de una transacción; el estado de facturación se recalcula con `computeBillingStatus` (en céntimos, `orders/billing-status.util.ts`).
+- **Carreras con índices únicos**: captura el error `23505` con `uniqueViolationConstraint(error)` y tradúcelo a la excepción de negocio según el nombre del índice.
+- **Cotizaciones**: solo se editan o rechazan en `PENDIENTE`; las transiciones de estado se validan en el servicio.
 
-2. **Route Ordering Fixed**
-   - Reordered routes: specific routes (`/sunat/:ruc`) before generic routes (`/:ruc`)
-   - Prevents NestJS from matching wrong routes
+## Migraciones
 
-3. **Eager Loading Removed**
-   - Removed `eager: true` from `Client.contacts` relationship
-   - Prevents N+1 query problems and unwanted data loading
-   - Use QueryBuilder with `leftJoinAndSelect` when relationships are needed
+- Viven en `src/migrations/`; la tabla de control es `public.migrations`.
+- El schema **nunca va escrito a mano**: en migraciones usa `const s = process.env.POSTGRES_SCHEMA || 'aspid'`, y en entidades no pongas `schema:` (lo da `POSTGRES_SCHEMA` en la conexión).
+- Cada migración lleva un comentario que explique el porqué y su `down()` completo.
+- Tras cambiar una entidad, crea la migración (`pnpm migration:create src/migrations/NombreDelCambio`) y escribe el SQL; no hay `synchronize`.
+- La foto `schema/baseline.sql` del repo `aspid-crm-database` no se toca: el historial está en las migraciones.
 
-4. **Pagination Fixed**
-   - `findAll()` now returns `{ message, data, total, limit, offset }`
-   - Total count properly exposed for frontend pagination
+## Errores
 
-#### Phase 2: Code Improvements ✅
+- Toda regla de negocio lanza una subclase de `ApiException(code, message, errors?, httpStatus)` definida en `<módulo>/exceptions/`.
+- Cada módulo tiene su rango de códigos (clients 10-19, users 20-29, visits 30-39, departments 40-49, quotes 50-59, analytics 60-69, auth 70-79, catalogs 80-89, deliverys 90-99, invoices 100-109, orders 110-119, portfolios 120-129, access 130-139). Detalle completo en `EXCEPTIONS_GUIDE.md`.
+- Reutiliza las excepciones existentes (p. ej. `ClientNotFoundException`) en vez de duplicarlas.
+- Las validaciones de formato van en el DTO con class-validator (mensajes en español), no en excepciones.
 
-1. **Complete Swagger Documentation**
-   - All endpoints documented with `@ApiOperation`, `@ApiResponse`
-   - Proper HTTP status codes and error descriptions
+## Convenciones
 
-2. **Enhanced Validations**
-   - Added `ParseIntPipe` for ID parameters
-   - Improved DTO validations with meaningful Spanish error messages
+- Propiedades de entidad en camelCase y columnas en snake_case con `name` explícito: `@Column({ name: 'cod_user' }) codUser`.
+- Sin `eager: true`: carga relaciones con QueryBuilder (`leftJoinAndSelect`) o `relations`.
+- Rutas específicas antes que genéricas en el controlador (`/sunat/:ruc` antes de `/:ruc`).
+- Ids de ruta con `ParseIntPipe`; Swagger con `@ApiOperation` y `@ApiResponse`.
+- Logger de Nest (`new Logger(Service.name)`), no `console.log`.
+- Prettier: comillas simples, comas finales, 2 espacios. Imports internos con el alias `src/`.
 
-3. **Improved Error Handling**
-   - All service methods wrapped in try-catch blocks
-   - Proper error typing: `error instanceof Error ? error.message : 'Error desconocido'`
-   - Consistent ApiException usage with proper HTTP status codes
+## Tests
 
-4. **Proper Logging**
-   - Logger statements in all service methods
-   - Log success operations and errors with context
+- Jest con specs junto al código, patrón **AAA** (Arrange, Act, Assert).
+- Mockea todas las dependencias del constructor; repositorios con `getRepositoryToken(Entity)`; `jest.clearAllMocks()` en `afterEach`.
+- Simula los ids `bigint` como string, igual que Postgres (ver `access-scope.service.spec.ts`).
+- Prueba reglas de negocio, errores y casos borde; no getters triviales ni librerías externas.
 
-5. **Timeout for External APIs**
-   - 10-second timeout on `consultSunatApi()` using AbortController
-   - Proper timeout error handling with 408 status
+## Problemas conocidos
 
-6. **Better Response Structures**
-   - All methods return consistent: `{ message: string, data: any, total?: number }`
-   - `create()` returns saved entity with ID, not just DTO
-
-#### Phase 3: Quality Enhancements ✅
-
-1. **UPDATE Endpoint Created**
-   - Added `PATCH /clients/:id` endpoint
-   - Validates client exists and prevents duplicate RUC
-   - Proper error handling and logging
-   - Uses existing `UpdateClientDto` (PartialType)
-
-2. **Consistent Naming**
-   - Renamed `consultaApiSunat` → `consultSunatApi` (English convention)
-   - Controller method: `consultaSunat()` (Spanish route name preserved)
-
-3. **Proper TypeScript Typing**
-   - Removed all `any[]` from `ruc-response.interfaces.ts`
-   - Created specific interfaces: `Telefono`, `ActividadEconomica`, `ComprobantePago`, etc.
-   - Changed nullable types from `null` to `string | null`
-
-4. **Comprehensive Unit Tests**
-   - **28 tests total** (17 service + 11 controller)
-   - All tests follow AAA pattern (Arrange, Act, Assert)
-   - Service tests cover: create, update, findAll, findByRuc, contacts operations
-   - Controller tests verify all endpoints and service interactions
-   - 100% pass rate, 0 lint errors
-
-#### Key Implementation Patterns
-
-**Service Method Template:**
-
-```typescript
-async methodName(params) {
-  try {
-    this.logger.log('Operation description');
-
-    // Validations
-    // Business logic
-    // Database operations
-
-    this.logger.log('Success message');
-    return { message: 'Success message', data: result };
-  } catch (error) {
-    if (error instanceof ApiException) throw error;
-
-    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-    this.logger.error(`Error: ${errorMessage}`);
-    throw new ApiException(500, 'Error message', [errorMessage], 500);
-  }
-}
-```
-
-**QueryBuilder for Selective Loading:**
-
-```typescript
-const client = await this.clientRepository
-  .createQueryBuilder('client')
-  .leftJoinAndSelect('client.contacts', 'contacts')
-  .where('client.ruc = :ruc', { ruc })
-  .getOne();
-```
-
-**Test Structure Template:**
-
-```typescript
-describe('methodName', () => {
-  it('should perform action successfully', async () => {
-    // ARRANGE: Setup data and mocks
-    const input = {
-      /* test data */
-    };
-    mockRepository.method.mockResolvedValue(expectedResult);
-
-    // ACT: Execute method
-    const result = await service.methodName(input);
-
-    // ASSERT: Verify results
-    expect(result.message).toContain('exitosamente');
-    expect(mockRepository.method).toHaveBeenCalledWith(input);
-  });
-});
-```
-
-#### Files Modified
-
-- `src/clients/clients.controller.ts` - All endpoints with auth, Swagger, validation
-- `src/clients/clients.service.ts` - All methods refactored with proper error handling
-- `src/clients/entities/client.entity.ts` - Removed eager loading
-- `src/clients/interfaces/ruc-response.interfaces.ts` - Proper TypeScript types
-- `src/clients/clients.service.spec.ts` - 17 comprehensive tests
-- `src/clients/clients.controller.spec.ts` - 11 comprehensive tests
-
-#### Lessons Learned
-
-1. **Always remove `eager: true`** - Use QueryBuilder for selective loading
-2. **Order routes correctly** - Specific before generic
-3. **Type catch errors** - `error instanceof Error ? error.message : 'Error desconocido'`
-4. **Mock repository methods** - Don't forget `.create()` and `.findOne()` vs `.findOneBy()`
-5. **Test with AAA pattern** - Clear separation improves readability
-6. **Return structured responses** - Consistent `{ message, data, total? }` format
-
-This module now serves as the **reference implementation** for all future refactorings.
+- Hay suites de tests que ya fallaban antes de los últimos cambios (entre ellas 2 tests de DTO de usuarios) y un error de lint en `common/exchange-rate.service.ts`.
+- El decorador `get-refresh-token.decorator.ts` imprime el refresh token en consola, y quedan algunos `console.log` sueltos.
+- El login revela si falló el correo o la contraseña, y valida la contraseña antes de mirar si el usuario está activo.
+- `bcrypt` se usa en su versión síncrona.
+- Los datos de analytics del frontend son simulados; los reportes reales están pendientes.
+- `.gitlab-ci.yml` todavía usa los nombres de imagen antiguos.
