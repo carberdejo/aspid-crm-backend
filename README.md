@@ -95,4 +95,3 @@ docker compose exec aspid-backend pnpm migration:run:prod
 - [`AGENTS.md`](AGENTS.md): arquitectura, formato de la API, autenticación, reglas de acceso
   y de negocio, migraciones, convenciones y problemas conocidos.
 - [`EXCEPTIONS_GUIDE.md`](EXCEPTIONS_GUIDE.md): códigos de error por módulo.
-- [`NGINX-CONFIG.md`](NGINX-CONFIG.md): configuración de Nginx como proxy (IP real del cliente).
