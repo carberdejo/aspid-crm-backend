@@ -11,6 +11,7 @@ import { UserSession } from 'src/users/entities';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UserRoleGuard } from './guards/user-role.guard';
+import { CognitoService } from './cognito/cognito.service';
 
 @Module({
   imports: [
@@ -32,11 +33,12 @@ import { UserRoleGuard } from './guards/user-role.guard';
   providers: [
     AuthService,
     JwtStrategy,
+    CognitoService,
     // Seguro por defecto: todo endpoint exige JWT salvo los marcados con @Public().
     // El orden importa: primero se autentica y luego se validan los roles.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: UserRoleGuard },
   ],
-  exports: [JwtStrategy, PassportModule, JwtModule],
+  exports: [JwtStrategy, PassportModule, JwtModule, CognitoService],
 })
 export class AuthModule {}

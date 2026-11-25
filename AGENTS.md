@@ -35,7 +35,7 @@ confundas con regresiones.
 
 ## Configuración
 
-- Variables en `.env` (plantilla en `.env.template`), validadas con Joi en `src/config/joi.validation.ts`: `POSTGRES_*`, `JWT_*`, `SUNAT_TOKEN`, `EXCHANGE_RATE_API_KEY`, `FRONTEND_HOST` (CORS).
+- Variables en `.env` (plantilla en `.env.template`), validadas con Joi en `src/config/joi.validation.ts`: `POSTGRES_*`, `JWT_*`, `COGNITO_*` y `AWS_*` (salen de `terraform output` en `aspid-crm-infra`), `SUNAT_TOKEN`, `EXCHANGE_RATE_API_KEY`, `FRONTEND_HOST` (CORS).
 - Puerto: **4000** en el `.env` (si falta `PORT`, el código cae en 5000).
 - API en `http://localhost:4000/api/v1`; Swagger en `/api/docs`.
 - `synchronize: false`: **el esquema solo cambia con migraciones**.
