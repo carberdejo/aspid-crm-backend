@@ -240,7 +240,7 @@ export class ClientsController {
         'Content-Type':
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition':
-          'attachment; filename=Maestra_Clientes_ACME.xlsx',
+          'attachment; filename=Maestra_Clientes_ASPID.xlsx',
         'Content-Length': buffer.length.toString(), // Importante convertir a string en Express
       });
 

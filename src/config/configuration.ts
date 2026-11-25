@@ -20,6 +20,12 @@ export const databaseConfig = () => ({
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
+  cognito: {
+    region: process.env.COGNITO_REGION || 'us-east-1',
+    userPoolId: process.env.COGNITO_USER_POOL_ID,
+    clientId: process.env.COGNITO_CLIENT_ID,
+    clientSecret: process.env.COGNITO_CLIENT_SECRET,
+  },
   sunat: {
     token: process.env.SUNAT_TOKEN || 'default_sunat_token',
   },

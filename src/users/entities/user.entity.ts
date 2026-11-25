@@ -28,13 +28,19 @@ export class User {
   @Column('varchar', { name: 'last_name', nullable: true })
   lastName: string;
 
-  @ApiProperty({ example: 'carlos@concar.com', description: 'Email único' })
+  @ApiProperty({ example: 'carlos@aspid.com', description: 'Email único' })
   @Column('varchar', { unique: true, nullable: false })
   email: string;
 
   @Exclude() // Oculta en la respuesta JSON
   @Column('varchar', { nullable: false })
   password: string;
+
+  // Identificador del usuario en Amazon Cognito (claim `sub` del token).
+  // Nulo mientras el usuario no tenga cuenta en Cognito.
+  @Exclude()
+  @Column({ name: 'cognito_sub', type: 'uuid', unique: true, nullable: true })
+  cognitoSub: string | null;
 
   @ApiProperty({ example: true, description: 'Estado de la cuenta' })
   @Column('boolean', { name: 'is_active', default: true })

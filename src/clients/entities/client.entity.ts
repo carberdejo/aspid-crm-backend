@@ -19,11 +19,11 @@ export class Client {
   @PrimaryGeneratedColumn({ type: 'bigint' })
   id: number;
 
-  @ApiProperty({ example: 'ACME Soluciones' })
+  @ApiProperty({ example: 'Andina Soluciones' })
   @Column({ name: 'commercial_name', type: 'varchar', length: 100 })
   commercialName: string;
 
-  @ApiProperty({ example: 'ACME SOLUCIONES GLOBALES S.A.C.' })
+  @ApiProperty({ example: 'ANDINA SOLUCIONES GLOBALES S.A.C.' })
   @Column({ name: 'business_name', type: 'varchar', length: 100 })
   businessName: string;
 

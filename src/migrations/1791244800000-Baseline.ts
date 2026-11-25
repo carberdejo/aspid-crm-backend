@@ -14,7 +14,7 @@ export class Baseline1791244800000 implements MigrationInterface {
   name = 'Baseline1791244800000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    const s = process.env.POSTGRES_SCHEMA || 'concar1';
+    const s = process.env.POSTGRES_SCHEMA || 'aspid';
 
     const [{ exists }] = (await queryRunner.query(
       `SELECT to_regclass('${s}."user"') IS NOT NULL AS exists`,

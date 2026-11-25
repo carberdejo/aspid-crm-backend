@@ -7,7 +7,7 @@ export class QueryClientDto extends PaginationDto {
   @ApiPropertyOptional({
     description:
       'Filtra por el nombre o RUC del cliente (búsqueda parcial, case-insensitive)',
-    example: 'Acme',
+    example: 'Andina',
   })
   @IsOptional()
   @IsString()

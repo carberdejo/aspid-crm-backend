@@ -28,9 +28,9 @@ async function bootstrap() {
 
   // Configuración de Swagger
   const config = new DocumentBuilder()
-    .setTitle('CONCAR ACME API')
+    .setTitle('ASPID CRM API')
     .setDescription(
-      'API del sistema CONCAR ACME para gestión de clientes, usuarios y visitas',
+      'API del sistema ASPID CRM para gestión de clientes, usuarios y visitas',
     )
     .setVersion('1.0')
     .addBearerAuth(

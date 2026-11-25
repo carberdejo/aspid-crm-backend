@@ -8,7 +8,7 @@ import {
 } from 'typeorm';
 import { Client } from './client.entity';
 
-@Entity({ name: 'contact_client', schema: 'concar1' })
+@Entity({ name: 'contact_client' })
 export class ContactClient {
   @ApiProperty({ example: 1, description: 'ID único del contacto' })
   @PrimaryGeneratedColumn({ type: 'bigint' })

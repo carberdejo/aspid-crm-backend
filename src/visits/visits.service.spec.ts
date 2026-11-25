@@ -254,7 +254,7 @@ describe('VisitsService', () => {
           firstName: 'Ana',
           lastName: 'Ruiz',
         },
-        client: { id: '7', commercialName: 'ACME', ruc: '20544699939' },
+        client: { id: '7', commercialName: 'ANDINA', ruc: '20544699939' },
         contact: null,
       };
       mockVisitRepository.createQueryBuilder.mockReturnValue(

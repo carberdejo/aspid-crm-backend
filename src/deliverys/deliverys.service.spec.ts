@@ -166,7 +166,7 @@ describe('DeliverysService', () => {
     it('should paginate and apply filters', async () => {
       // ACT
       const result = await service.findAll(
-        { limit: 5, offset: 10, departmentId: 3, term: 'ACME' },
+        { limit: 5, offset: 10, departmentId: 3, term: 'ANDINA' },
         admin,
       );
 

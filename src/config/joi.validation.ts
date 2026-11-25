@@ -27,6 +27,26 @@ export const ValidationSchema = Joi.object({
     .required()
     .description('Expiration time for refresh tokens (e.g., 7d)'),
 
+  // Amazon Cognito (valores: terraform output en aspid-crm-infra/envs/<entorno>)
+  COGNITO_REGION: Joi.string()
+    .default('us-east-1')
+    .description('Región del user pool de Cognito'),
+  COGNITO_USER_POOL_ID: Joi.string()
+    .pattern(/^[\w-]+_[0-9a-zA-Z]+$/)
+    .required()
+    .description('ID del user pool (ej. us-east-1_xxxxxxx)'),
+  COGNITO_CLIENT_ID: Joi.string()
+    .required()
+    .description('ID del app client confidencial del backend'),
+  COGNITO_CLIENT_SECRET: Joi.string()
+    .required()
+    .description('Secret del app client (para calcular SECRET_HASH)'),
+
+  // Credenciales del usuario IAM del backend. Opcionales: el SDK de AWS las lee
+  // del entorno; en un servidor con rol IAM no hacen falta.
+  AWS_ACCESS_KEY_ID: Joi.string().optional(),
+  AWS_SECRET_ACCESS_KEY: Joi.string().optional(),
+
   // SUNAT API Token
   SUNAT_TOKEN: Joi.string()
     .required()

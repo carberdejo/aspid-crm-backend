@@ -192,13 +192,13 @@ describe('AnalyticsService', () => {
     it('usa una copia de la consulta base para cada métrica', async () => {
       visitQb.getCount.mockResolvedValue(4);
       visitQb.getRawOne
-        .mockResolvedValueOnce({ name: 'ACME', count: '3' })
+        .mockResolvedValueOnce({ name: 'ANDINA', count: '3' })
         .mockResolvedValueOnce({ name: 'Ana Pérez', count: '2' })
         .mockResolvedValueOnce({ date: '2026-10-12', count: '2' });
 
       await expect(service.getVisitStats({}, employee)).resolves.toEqual({
         total: 4,
-        mostVisitedClient: { name: 'ACME', count: 3 },
+        mostVisitedClient: { name: 'ANDINA', count: 3 },
         mostVisitedContact: { name: 'Ana Pérez', count: 2 },
         peakActivityDay: { date: '2026-10-12', count: 2 },
       });
